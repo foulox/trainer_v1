@@ -53,7 +53,7 @@ function sheetToObjects(sheet) {
 }
 
 function formatCell(header, value) {
-  if (value instanceof Date) {
+  if (value && typeof value === 'object' && typeof value.getTime === 'function') {
     return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd')
   }
   return value
