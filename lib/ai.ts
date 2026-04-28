@@ -112,7 +112,7 @@ function buildWorkoutContext(
     `Instructions: ${workout.instructions ?? 'None'}`,
     '',
     `CURRENT PHASE: ${phase?.name ?? '—'} — ${phase?.goal ?? ''}`,
-    nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — ${nextRace.purpose}` : '',
+    nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — ${nextRace.grade}-race` : '',
     '',
     `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep ${health?.sleepHours ?? '—'} hrs`,
     '',

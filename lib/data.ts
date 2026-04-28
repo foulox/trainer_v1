@@ -24,11 +24,24 @@ export type Phase = {
   goal: string
 }
 
+export type LibraryWorkout = {
+  name: string
+  sport: string
+  category: string
+  type: string
+  reason: string
+  instructions: string
+  distTime: string
+  energySystem: string
+  hrZone: string
+  rpe: string
+}
+
 export type Race = {
   name: string
   date: string
   distance: string
-  purpose: 'Target' | 'Test'
+  grade: 'A' | 'B' | 'C'
   location: string
   notes: string | null
 }

@@ -1,6 +1,6 @@
 import type {
   PlannedWorkout, Phase, Race,
-  StravaActivity, HealthEntry, TrainingLogEntry,
+  StravaActivity, HealthEntry, TrainingLogEntry, LibraryWorkout,
 } from './data'
 
 type Row = Record<string, unknown>
@@ -50,12 +50,38 @@ function mapPhase(row: Row): Phase {
   }
 }
 
+function normalizeSport(raw: string): string {
+  const s = raw.trim().toLowerCase()
+  if (s === 'running') return 'Run'
+  if (s === 'cycling' || s === 'biking') return 'Bike'
+  return raw.trim()
+}
+
+function mapLibraryWorkout(row: Row): LibraryWorkout {
+  return {
+    name:         str(row['Workout Name']),
+    sport:        normalizeSport(str(row['Sport'])),
+    category:     str(row['Category']),
+    type:         str(row['Type']),
+    reason:       str(row['Reason / Purpose']),
+    instructions: str(row['Instructions']),
+    distTime:     str(row['Dist/Time']),
+    energySystem: str(row['Energy System']),
+    hrZone:       str(row['HR Zone']),
+    rpe:          str(row['RPE']),
+  }
+}
+
 function mapRace(row: Row): Race {
+  const raw = str(row['Purpose'] ?? row['Grade'] ?? '')
+  const grade: Race['grade'] =
+    raw === 'A' || raw === 'Target' ? 'A' :
+    raw === 'B' || raw === 'Test'   ? 'B' : 'C'
   return {
     name:     str(row['Race Name']),
     date:     date(row['Date']),
     distance: str(row['Distance']),
-    purpose:  str(row['Purpose']) as Race['purpose'],
+    grade,
     location: str(row['Location']),
     notes:    str(row['Notes']) || null,
   }
@@ -132,8 +158,16 @@ export async function fetchPlanData() {
   try {
     const res = await fetch(url, { next: { revalidate: 300 } })
     const json = await res.json() as { plan: Row[], phases: Row[], races: Row[] }
+    const allRows = json.plan.map(mapPlan).filter(e => e.date)
+    const byDate = new Map<string, PlannedWorkout>()
+    for (const row of allRows) {
+      const existing = byDate.get(row.date)
+      if (!existing || row.dayType !== 'Rest' || existing.dayType === 'Rest') {
+        byDate.set(row.date, row)
+      }
+    }
     return {
-      plan:   json.plan.map(mapPlan).filter(e => e.date),
+      plan:   Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date)),
       phases: json.phases.map(mapPhase).filter(e => e.name),
       races:  json.races.map(mapRace).filter(e => e.name),
     }
@@ -153,6 +187,18 @@ export async function fetchTrainingData() {
     }
   } catch {
     return { strava: [], health: [] }
+  }
+}
+
+export async function fetchLibrary(): Promise<LibraryWorkout[]> {
+  const url = process.env.LIBRARY_SHEETS_URL
+  if (!url) return []
+  try {
+    const res = await fetch(url, { next: { revalidate: 300 } })
+    const json = await res.json() as { workouts: Row[] }
+    return json.workouts.map(mapLibraryWorkout).filter(w => w.name)
+  } catch {
+    return []
   }
 }
 

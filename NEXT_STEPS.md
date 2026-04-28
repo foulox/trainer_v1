@@ -1,140 +1,76 @@
-# Next Steps — Getting trainer_v1 Live
+# Next Steps — trainer_v1
 
-Work through these in order. Each section depends on the previous one.
+## Current Status (as of late April 2026)
 
----
-
-## 1. Clerk (Auth)
-
-1. Go to [clerk.com](https://clerk.com) → Sign up → Create application
-2. Name it "2026 Training"
-3. Enable Google as a sign-in method (Settings → Social connections → Google)
-4. Go to API Keys → copy both keys
-5. Add to `.env.local`:
-   ```
-   CLERK_SECRET_KEY=sk_...
-   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
-   ```
-6. Test locally: `npm run dev` → should redirect to sign-in at http://localhost:3000
+The app is live and being used daily. Lou is actively building out phases and workouts in the Plan tab. The core plan editing loop (phases, races, day editor, copy-to-weekday) is built. The main blockers before the app is fully useful are Vercel KV (for AI notes) and Strava sync.
 
 ---
 
-## 2. Vercel — Link Project
+## Immediate — Apps Script
 
-1. Go to [vercel.com](https://vercel.com) → New Project → Import from GitHub → `foulox/trainer_v1`
-2. Framework: Next.js (auto-detected)
-3. Do NOT deploy yet — add env vars first (step 3)
+The local `sheets/scripts/plan_script.js` has fixes that may or may not be deployed. Before any plan editing, verify:
 
----
+1. Open Apps Script for the Training Plan sheet
+2. Deploy → Manage Deployments — check the URL matches `PLAN_SHEETS_URL` in `.env.local`
+3. If saving a new version, always use: Edit (pencil) → Version: "New version" → Deploy
+4. **Never** just save the script and assume the web app updated — it won't
 
-## 3. Vercel — Environment Variables
-
-In the Vercel project Settings → Environment Variables, add all of these:
-
-| Name | Value |
-|------|-------|
-| `PLAN_SHEETS_URL` | *(from .env.local)* |
-| `DATA_SHEETS_URL` | *(from .env.local)* |
-| `LOG_SHEETS_URL` | *(from .env.local)* |
-| `LIBRARY_SHEETS_URL` | *(leave blank for now)* |
-| `CLERK_SECRET_KEY` | *(from Clerk)* |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | *(from Clerk)* |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/` |
-| `ANTHROPIC_API_KEY` | *(from Anthropic console — next step)* |
+**Known sheet state issue**: Some phases may have stray rows (workouts that survived a failed "Set up days" run). Fix: open each phase in the Plan tab → "Set up days" → this clears and rewrites all rows for that date range as Rest. Then re-apply workouts.
 
 ---
 
-## 4. Anthropic API Key
+## Active Plan Building
 
-1. Go to [console.anthropic.com](https://console.anthropic.com) → API Keys → Create Key
-2. Copy it → add to Vercel env vars as `ANTHROPIC_API_KEY`
-3. Also add to `.env.local` for local development
-
----
-
-## 5. Vercel KV (for AI coaching note cache)
-
-1. In Vercel dashboard → your project → Storage tab → Create Database → KV
-2. Name it "trainer-kv"
-3. Connect it to the project → Vercel auto-adds all `KV_*` env vars
-4. Also pull them locally: `npx vercel env pull .env.local` (run from the trainer_v1 directory)
+Lou is building out phases in the Weeks tab. Current workflow:
+1. Add phases in Phases tab
+2. "Set up days" on each phase to create blank rows
+3. Edit individual days in the day editor
+4. Use "copy to all [weekday] days in this phase" to apply a workout to an entire weekday
 
 ---
 
-## 6. Deploy
+## Infrastructure — Remaining Setup
 
-1. In Vercel dashboard → Deployments → Deploy (or just push a commit to main)
-2. Visit the live URL → should redirect to Clerk sign-in → sign in with Google
-3. You should see the Today, Week, Plan, and Library tabs
+### Vercel KV (for AI coaching notes)
+1. Vercel dashboard → project → Storage → Create Database → KV
+2. Name it "trainer-kv" → Connect to project
+3. Pull env vars locally: `npx vercel env pull .env.local`
+4. Once wired, the Today and Week pages will show AI coaching content
 
----
+### Strava Sync
+1. Get credentials from the old marathon tracker Settings sheet (Client ID, Secret, Refresh Token)
+2. Add to Vercel env vars: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`
+3. The cron endpoint `/api/cron/strava-sync` is ready — needs credentials + Vercel cron config
 
-## 7. Workout Library Sheet
+### Apple Health (iOS Shortcut)
+Set up after Strava is working. The POST endpoint `/api/health` needs to be built.
 
-The Library tab is a placeholder until this is wired up.
-
-1. The Workout Library sheet already exists (shared with TigerWolves)
-2. Get its Apps Script URL from the TigerWolves project (it's in tigerwolves/.env.local as `SHEETS_URL`)
-3. Add it to Vercel env vars as `LIBRARY_SHEETS_URL`
-4. Tell Claude — the Library screen can then be built out
-
----
-
-## 8. Strava Setup
-
-The app will sync Strava activities automatically once this is configured.
-
-1. Go to [strava.com/settings/api](https://www.strava.com/settings/api) → your existing app
-2. You need three values from the existing marathon tracker Settings sheet:
-   - Client ID
-   - Client Secret
-   - Refresh Token (the long one in B21)
-3. Add to Vercel env vars:
-   ```
-   STRAVA_CLIENT_ID=
-   STRAVA_CLIENT_SECRET=
-   STRAVA_REFRESH_TOKEN=
-   ```
-4. Tell Claude — the Strava sync cron job is ready to be wired up
+### AI Coaching Cron Jobs
+Needs Vercel KV + Anthropic key first (Anthropic key is already set in Vercel). Then:
+- Nightly cron: generate coaching notes for next 7 days
+- Sunday night cron: generate week-in-review
 
 ---
 
-## 9. Apple Health (iOS Shortcut)
+## Quick Reference — What's Done
 
-This sends HRV, sleep, and resting HR from your phone to the app automatically.
-
-Set this up after the app is live and Strava is working. Tell Claude and we'll build the
-iOS Shortcut configuration together.
-
----
-
-## 10. AI Coaching Cron Jobs
-
-These run automatically once deployed to Vercel.
-
-- Nightly (midnight ET): generates coaching notes for the next 7 days
-- Sunday night: generates week-in-review
-
-Tell Claude when the app is live and Strava/Anthropic are wired up — we'll add the
-cron jobs as the final step.
-
----
-
-## Quick reference — what's already done
-
-- [x] Next.js app scaffolded and pushed to GitHub
-- [x] All four screens built (Today, Week, Plan, Library placeholder)
-- [x] Google Sheets Apps Scripts written and deployed (all 3 sheets)
-- [x] Sheet URLs saved in .env.local
-- [x] Data layer (lib/sheets.ts, lib/data.ts) — reads all three sheets
-- [x] AI layer (lib/ai.ts) — coaching notes + week review via Claude
-- [x] KV helpers (lib/kv.ts) — caching AI content
-- [ ] Clerk keys
-- [ ] Vercel project linked
-- [ ] Vercel KV provisioned
-- [ ] Anthropic API key
-- [ ] Strava credentials
-- [ ] Apple Health shortcut
-- [ ] Cron jobs
-- [ ] Library screen (needs sheet URL)
+- [x] Next.js app scaffolded and deployed to Vercel
+- [x] All four screens built (Today, Week, Plan, Library)
+- [x] Plan tab: Weeks / Phases / Races sub-tabs
+- [x] Week view: calendar-week grouping (Mon–Sun), day editor, pagination
+- [x] Day editor: workout fields, library picker, copy-to-weekday feature
+- [x] Phases tab: chronological timeline, A/B races as section cards, C races inline
+- [x] Races tab: add / edit / delete with grade (A/B/C)
+- [x] Google Sheets Apps Scripts written and deployed (Plan, Data, Log sheets)
+- [x] Data layer: lib/sheets.ts reads and normalizes all sheets
+- [x] AI layer: lib/ai.ts — coaching notes + week review via Claude
+- [x] KV helpers: lib/kv.ts — caching AI content (wiring pending)
+- [x] Clerk auth: Lou signed in, works locally and on Vercel
+- [x] Anthropic API key: set in Vercel env vars
+- [x] Library sheet wired: LIBRARY_SHEETS_URL set, library picker works in day editor
+- [ ] Vercel KV provisioned and wired
+- [ ] Strava credentials + sync cron job
+- [ ] Apple Health iOS Shortcut + POST endpoint
+- [ ] AI coaching cron jobs (needs KV)
+- [ ] Today page: AI coaching note, HRV/sleep display (needs KV + Apple Health)
+- [ ] Week page: AI week-in-review (needs KV)
