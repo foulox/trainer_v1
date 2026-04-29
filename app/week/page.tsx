@@ -19,7 +19,7 @@ export default async function WeekPage() {
   const today = new Date().toISOString().slice(0, 10)
   const { start, end } = getWeekBounds(today)
 
-  const [{ plan, phases, races }, { health }, log] = await Promise.all([
+  const [{ plan, phases, races }, { health, strava }, log] = await Promise.all([
     fetchPlanData(),
     fetchTrainingData(),
     fetchTrainingLog(),
@@ -28,6 +28,7 @@ export default async function WeekPage() {
   const weekPlan = plan.filter(e => e.date >= start && e.date <= end)
   const weekLog = log.filter(e => e.date >= start && e.date <= end)
   const weekHealth = health.filter(e => e.date >= start && e.date <= end)
+  const weekStrava = strava.filter(a => a.date >= start && a.date <= end)
 
   const weekNum = weekPlan[0]?.week ?? 1
   const weekReview = await getWeekReview(weekNum).catch(() => null)
@@ -47,6 +48,7 @@ export default async function WeekPage() {
       weekReview={weekReview}
       currentPhase={currentPhase}
       nextRace={nextRace}
+      stravaActivities={weekStrava}
     />
   )
 }

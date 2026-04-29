@@ -25,6 +25,29 @@ function toPace(metersPerSec: number): string | null {
   return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
+type ZoneBucket = { time: number }
+type ZoneData = { type: string; distribution_buckets: ZoneBucket[] }
+
+async function fetchZones(
+  accessToken: string,
+  activityId: number
+): Promise<[number, number, number, number, number]> {
+  try {
+    const res = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}/zones`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' }
+    )
+    const data = await res.json() as ZoneData[]
+    const hr = Array.isArray(data) ? data.find(z => z.type === 'heartrate') : null
+    if (!hr?.distribution_buckets?.length) return [0, 0, 0, 0, 0]
+    const mins = hr.distribution_buckets.map(b => Math.round(b.time / 60))
+    while (mins.length < 5) mins.push(0)
+    return [mins[0], mins[1], mins[2], mins[3], mins[4]]
+  } catch {
+    return [0, 0, 0, 0, 0]
+  }
+}
+
 async function getAccessToken(): Promise<string> {
   const res = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
@@ -104,6 +127,10 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
 
       if (dataResult.skipped) { skipped++; continue }
 
+      const zones = act.average_heartrate
+        ? await fetchZones(accessToken, act.id)
+        : ([0, 0, 0, 0, 0] as [number, number, number, number, number])
+
       const planDay = planByDate.get(date)
       const logRow = {
         'Date': date,
@@ -124,6 +151,11 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
         'Strava ID': String(act.id),
         'Injury / Body Notes': '',
         'Notes': '',
+        'Zone1 (min)': zones[0],
+        'Zone2 (min)': zones[1],
+        'Zone3 (min)': zones[2],
+        'Zone4 (min)': zones[3],
+        'Zone5 (min)': zones[4],
       }
 
       await fetch(process.env.LOG_SHEETS_URL!, {

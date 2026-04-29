@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote } from '@/lib/data'
+import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity } from '@/lib/data'
 import { Brain, Zap, Moon, Heart, RefreshCw } from 'lucide-react'
 import { syncStrava } from '@/app/actions'
+import ActivityDrawer from './ActivityDrawer'
+
+const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
 
 function formatDateLong(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
@@ -14,17 +17,6 @@ function formatDateLong(iso: string) {
 function daysUntil(iso: string) {
   const diff = new Date(iso + 'T00:00:00').getTime() - new Date().setHours(0, 0, 0, 0)
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
-}
-
-const DAY_TYPE_COLORS: Record<string, string> = {
-  Run:           'border-l-blue-500',
-  'Run (Easy)':  'border-l-green-500',
-  'Run (Long)':  'border-l-purple-500',
-  'Run (Quality)': 'border-l-blue-600',
-  Bike:          'border-l-yellow-500',
-  Race:          'border-l-red-500',
-  Supplementary: 'border-l-teal-500',
-  Rest:          'border-l-gray-200',
 }
 
 function runTypeBorderColor(entry: PlannedWorkout) {
@@ -44,22 +36,44 @@ function hrvColor(hrv: number | null) {
   return 'text-red-500'
 }
 
+function ZoneBar({ logs }: { logs: TrainingLogEntry[] }) {
+  const totals = [
+    logs.reduce((s, l) => s + (l.zone1 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone2 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone3 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone4 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone5 ?? 0), 0),
+  ]
+  const total = totals.reduce((s, v) => s + v, 0)
+  if (total === 0) return null
+  return (
+    <div className="flex h-1.5 rounded-full overflow-hidden mt-2">
+      {totals.map((t, i) => t > 0 ? (
+        <div key={i} className={ZONE_COLORS[i]} style={{ width: `${(t / total) * 100}%` }} />
+      ) : null)}
+    </div>
+  )
+}
+
 type Props = {
   today: string
   todayEntry: PlannedWorkout | null
   nextWorkout: PlannedWorkout | null
   todayHealth: HealthEntry | null
-  todayLog: TrainingLogEntry | null
+  todayLogs: TrainingLogEntry[]
+  stravaActivities: StravaActivity[]
   currentPhase: Phase | null
   nextRace: Race | null
   coachingNote: CoachingNote | null
 }
 
 export default function TodayClient({
-  today, todayEntry, nextWorkout, todayHealth, todayLog, currentPhase, nextRace, coachingNote,
+  today, todayEntry, nextWorkout, todayHealth, todayLogs, stravaActivities,
+  currentPhase, nextRace, coachingNote,
 }: Props) {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
 
   async function handleSync() {
     setSyncing(true)
@@ -84,13 +98,11 @@ export default function TodayClient({
   return (
     <div className="px-4 pt-10 pb-4">
 
-      {/* Header */}
       <header className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Today</h1>
         <p className="text-sm text-gray-500 mt-0.5">{formatDateLong(today)}</p>
       </header>
 
-      {/* Race countdown */}
       {nextRace && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{nextRace.name}</span>
@@ -98,7 +110,6 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Health snapshot */}
       {todayHealth && (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
@@ -124,7 +135,6 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Workout card */}
       {isRestDay ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
           <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">TODAY</div>
@@ -146,20 +156,17 @@ export default function TodayClient({
               {entry.runType ?? entry.dayType}
             </span>
           </div>
-
           <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
             {entry.distance && <span className="font-semibold text-gray-700">{entry.distance} mi</span>}
             {entry.hrZone && <span>Zone {entry.hrZone}</span>}
             {entry.targetPace && <span>{entry.targetPace} /mi</span>}
             {currentPhase && <span>{currentPhase.name}</span>}
           </div>
-
           {entry.reason && (
             <div className="text-sm text-gray-600 mb-3 leading-relaxed">
               <span className="font-semibold text-gray-700">Purpose: </span>{entry.reason}
             </div>
           )}
-
           {entry.instructions && (
             <div className="text-sm text-gray-500 leading-relaxed border-t border-gray-100 pt-3">
               {entry.instructions}
@@ -172,7 +179,6 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* AI coaching note */}
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-2">
           <Brain size={14} className="text-blue-500" />
@@ -189,27 +195,39 @@ export default function TodayClient({
         )}
       </div>
 
-      {/* Logged activity */}
-      {todayLog && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+      {todayLogs.length > 0 && (
+        <div className="mb-4">
           <div className="text-xs font-bold text-gray-400 tracking-wide mb-2">LOGGED TODAY</div>
-          <div className="flex gap-4 text-sm">
-            <div><span className="font-semibold text-gray-900">{todayLog.distance} mi</span></div>
-            <div><span className="text-gray-500">{todayLog.duration} min</span></div>
-            {todayLog.avgHr && <div><span className="text-gray-500">{todayLog.avgHr} bpm avg</span></div>}
-            {todayLog.rpe && <div><span className="text-gray-500">RPE {todayLog.rpe}</span></div>}
+          <div className="flex flex-col gap-2">
+            {todayLogs.map((log, i) => {
+              const act = log.stravaId ? stravaActivities.find(a => a.activityId === log.stravaId) : null
+              const name = act?.name ?? log.activityType
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelected(log)}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-left w-full"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="font-semibold text-gray-900 text-sm">{name}</div>
+                    <div className="text-xs text-gray-400">{log.activityType}</div>
+                  </div>
+                  <div className="flex gap-3 text-sm text-gray-500">
+                    {log.distance && <span className="font-semibold text-gray-700">{log.distance} mi</span>}
+                    {log.duration && <span>{log.duration} min</span>}
+                    {log.pace && <span>{log.pace} /mi</span>}
+                    {log.avgHr && <span>{log.avgHr} bpm</span>}
+                  </div>
+                  <ZoneBar logs={[log]} />
+                </button>
+              )
+            })}
           </div>
-          {todayLog.postRunFeel && (
-            <div className="text-sm text-gray-500 mt-1">{todayLog.postRunFeel}</div>
-          )}
         </div>
       )}
 
-      {/* Strava sync */}
       <div className="flex items-center justify-end gap-3">
-        {syncMsg && (
-          <span className="text-xs text-gray-400">{syncMsg}</span>
-        )}
+        {syncMsg && <span className="text-xs text-gray-400">{syncMsg}</span>}
         <button
           onClick={handleSync}
           disabled={syncing}
@@ -219,6 +237,14 @@ export default function TodayClient({
           {syncing ? 'Syncing…' : 'Sync Strava'}
         </button>
       </div>
+
+      {selected && (
+        <ActivityDrawer
+          log={selected}
+          stravaActivities={stravaActivities}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }

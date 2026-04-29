@@ -140,6 +140,11 @@ function mapLog(row: Row): TrainingLogEntry {
     stravaId:     str(row['Strava ID']) || null,
     injuryNotes:  str(row['Injury / Body Notes']) || null,
     notes:        str(row['Notes']) || null,
+    zone1:        num(row['Zone1 (min)']),
+    zone2:        num(row['Zone2 (min)']),
+    zone3:        num(row['Zone3 (min)']),
+    zone4:        num(row['Zone4 (min)']),
+    zone5:        num(row['Zone5 (min)']),
   }
 }
 

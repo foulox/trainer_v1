@@ -94,6 +94,11 @@ export type TrainingLogEntry = {
   stravaId: string | null
   injuryNotes: string | null
   notes: string | null
+  zone1: number | null
+  zone2: number | null
+  zone3: number | null
+  zone4: number | null
+  zone5: number | null
 }
 
 export type CoachingNote = {

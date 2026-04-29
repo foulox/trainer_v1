@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import { Copy, Check, Brain } from 'lucide-react'
-import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, Race } from '@/lib/data'
+import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, Race, StravaActivity } from '@/lib/data'
+import ActivityDrawer from './ActivityDrawer'
+
+const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
 
 function fmt(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -22,6 +25,25 @@ function runTypeDot(entry: PlannedWorkout) {
   return 'bg-blue-300'
 }
 
+function ZoneBar({ logs }: { logs: TrainingLogEntry[] }) {
+  const totals = [
+    logs.reduce((s, l) => s + (l.zone1 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone2 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone3 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone4 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone5 ?? 0), 0),
+  ]
+  const total = totals.reduce((s, v) => s + v, 0)
+  if (total === 0) return null
+  return (
+    <div className="flex h-1 rounded-full overflow-hidden mt-2">
+      {totals.map((t, i) => t > 0 ? (
+        <div key={i} className={ZONE_COLORS[i]} style={{ width: `${(t / total) * 100}%` }} />
+      ) : null)}
+    </div>
+  )
+}
+
 type Props = {
   today: string
   weekStart: string
@@ -33,13 +55,15 @@ type Props = {
   weekReview: WeekReview | null
   currentPhase: Phase | null
   nextRace: Race | null
+  stravaActivities: StravaActivity[]
 }
 
 export default function WeekClient({
   today, weekStart, weekEnd, weekNum, weekPlan, weekLog,
-  weekHealth, weekReview, currentPhase,
+  weekHealth, weekReview, currentPhase, stravaActivities,
 }: Props) {
   const [copied, setCopied] = useState(false)
+  const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
 
   const plannedMiles = weekPlan.reduce((s, e) => s + (e.distance ?? 0), 0)
   const actualMiles = weekLog.reduce((s, e) => s + (e.distance ?? 0), 0)
@@ -63,7 +87,6 @@ export default function WeekClient({
         </p>
       </header>
 
-      {/* Volume summary */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
         <div className="flex justify-between items-baseline mb-2">
           <div className="text-sm font-semibold text-gray-700">Mileage</div>
@@ -78,43 +101,75 @@ export default function WeekClient({
         <div className="text-xs text-gray-400 mt-1">{pct}% complete</div>
       </div>
 
-      {/* Day-by-day */}
       <div className="flex flex-col gap-2 mb-5">
         {weekPlan.map(entry => {
-          const actual = weekLog.find(l => l.date === entry.date)
+          const dayLogs = weekLog.filter(l => l.date === entry.date)
           const isToday = entry.date === today
+          const isPast = entry.date < today
+          const totalActualMi = dayLogs.reduce((s, l) => s + (l.distance ?? 0), 0)
+
           return (
             <div
               key={entry.date}
-              className={`bg-white rounded-2xl border shadow-sm p-3 flex items-center gap-3 ${isToday ? 'border-blue-200' : 'border-gray-100'}`}
+              className={`bg-white rounded-2xl border shadow-sm p-3 ${isToday ? 'border-blue-200' : 'border-gray-100'}`}
             >
-              <div className="text-center w-8 shrink-0">
-                <div className="text-xs font-semibold text-gray-400">{fmtDay(entry.date)}</div>
-                <div className="text-sm font-bold text-gray-900">{new Date(entry.date + 'T00:00:00').getDate()}</div>
+              {/* Date + planned row */}
+              <div className="flex items-center gap-3">
+                <div className="text-center w-8 shrink-0">
+                  <div className="text-xs font-semibold text-gray-400">{fmtDay(entry.date)}</div>
+                  <div className="text-sm font-bold text-gray-900">{new Date(entry.date + 'T00:00:00').getDate()}</div>
+                </div>
+                <div className={`w-2 h-2 rounded-full shrink-0 ${runTypeDot(entry)}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 truncate">
+                    {entry.workout ?? entry.runType ?? entry.dayType}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {entry.distance ? `${entry.distance} mi planned` : entry.dayType}
+                  </div>
+                </div>
+                {dayLogs.length > 0 ? (
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-semibold text-emerald-600">{totalActualMi.toFixed(1)} mi</div>
+                    <div className="text-xs text-gray-400">
+                      {dayLogs.reduce((s, l) => s + (l.duration ?? 0), 0)} min
+                    </div>
+                  </div>
+                ) : isPast && entry.dayType !== 'Rest' ? (
+                  <div className="text-xs text-amber-500 font-medium shrink-0">Not logged</div>
+                ) : null}
               </div>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${runTypeDot(entry)}`} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-gray-900 truncate">
-                  {entry.workout ?? entry.runType ?? entry.dayType}
+
+              {/* Logged activities */}
+              {dayLogs.length > 0 && (
+                <div className="mt-2 pl-11 flex flex-col gap-1">
+                  {dayLogs.map((log, i) => {
+                    const act = log.stravaId ? stravaActivities.find(a => a.activityId === log.stravaId) : null
+                    const name = act?.name ?? log.activityType
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setSelected(log)}
+                        className="text-left flex items-center gap-2 py-0.5"
+                      >
+                        <span className="text-xs text-gray-700 font-medium truncate">{name}</span>
+                        {log.distance && (
+                          <span className="text-xs text-gray-400 shrink-0">{log.distance} mi</span>
+                        )}
+                        {log.avgHr && (
+                          <span className="text-xs text-gray-400 shrink-0">{log.avgHr} bpm</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                  <ZoneBar logs={dayLogs} />
                 </div>
-                <div className="text-xs text-gray-400">
-                  {entry.distance ? `${entry.distance} mi planned` : entry.dayType}
-                </div>
-              </div>
-              {actual ? (
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-semibold text-emerald-600">{actual.distance} mi</div>
-                  <div className="text-xs text-gray-400">{actual.duration} min</div>
-                </div>
-              ) : entry.date < today && entry.dayType !== 'Rest' ? (
-                <div className="text-xs text-amber-500 font-medium shrink-0">Not logged</div>
-              ) : null}
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* AI week review */}
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-2">
           <Brain size={14} className="text-blue-500" />
@@ -129,7 +184,6 @@ export default function WeekClient({
         )}
       </div>
 
-      {/* PT summary */}
       {weekReview?.ptSummary && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="text-xs font-bold text-gray-500 tracking-wide mb-2">PT SUMMARY</div>
@@ -143,6 +197,14 @@ export default function WeekClient({
             {copied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy for PT</>}
           </button>
         </div>
+      )}
+
+      {selected && (
+        <ActivityDrawer
+          log={selected}
+          stravaActivities={stravaActivities}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   )
