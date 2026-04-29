@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote } from '@/lib/data'
-import { Brain, Zap, Moon, Heart, ChevronRight } from 'lucide-react'
+import { Brain, Zap, Moon, Heart, RefreshCw } from 'lucide-react'
+import { syncStrava } from '@/app/actions'
 
 function formatDateLong(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
@@ -56,6 +58,25 @@ type Props = {
 export default function TodayClient({
   today, todayEntry, nextWorkout, todayHealth, todayLog, currentPhase, nextRace, coachingNote,
 }: Props) {
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const result = await syncStrava()
+      setSyncMsg(result.added > 0
+        ? `Synced ${result.added} activit${result.added === 1 ? 'y' : 'ies'}`
+        : 'Already up to date'
+      )
+    } catch {
+      setSyncMsg('Sync failed — check credentials')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const entry = todayEntry ?? nextWorkout
   const isToday = entry?.date === today
   const isRestDay = todayEntry?.dayType === 'Rest'
@@ -170,7 +191,7 @@ export default function TodayClient({
 
       {/* Logged activity */}
       {todayLog && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
           <div className="text-xs font-bold text-gray-400 tracking-wide mb-2">LOGGED TODAY</div>
           <div className="flex gap-4 text-sm">
             <div><span className="font-semibold text-gray-900">{todayLog.distance} mi</span></div>
@@ -183,6 +204,21 @@ export default function TodayClient({
           )}
         </div>
       )}
+
+      {/* Strava sync */}
+      <div className="flex items-center justify-end gap-3">
+        {syncMsg && (
+          <span className="text-xs text-gray-400">{syncMsg}</span>
+        )}
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
+        >
+          <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing…' : 'Sync Strava'}
+        </button>
+      </div>
     </div>
   )
 }

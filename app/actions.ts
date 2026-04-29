@@ -163,6 +163,14 @@ export async function applyWorkoutToWeekday(payload: {
   revalidatePath('/')
 }
 
+export async function syncStrava(): Promise<{ added: number; skipped: number; errors: number }> {
+  const { syncStravaActivities } = await import('@/lib/strava')
+  const result = await syncStravaActivities()
+  revalidatePath('/')
+  revalidatePath('/week')
+  return result
+}
+
 export async function addLibraryWorkout(data: {
   name: string
   sport: string

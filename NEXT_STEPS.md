@@ -1,21 +1,21 @@
 # Next Steps — trainer_v1
 
-## Current Status (as of late April 2026)
+## Current Status (as of 2026-04-27)
 
 The app is live and being used daily. Lou is actively building out phases and workouts in the Plan tab. The core plan editing loop (phases, races, day editor, copy-to-weekday) is built. The main blockers before the app is fully useful are Vercel KV (for AI notes) and Strava sync.
 
 ---
 
-## Immediate — Apps Script
+## Immediate — Apps Script (PENDING as of 2026-04-27)
 
-The local `sheets/scripts/plan_script.js` has fixes that may or may not be deployed. Before any plan editing, verify:
+Apps Script v3 is written and committed to the repo. **Two manual steps still needed in the Apps Script editor:**
 
-1. Open Apps Script for the Training Plan sheet
-2. Deploy → Manage Deployments — check the URL matches `PLAN_SHEETS_URL` in `.env.local`
-3. If saving a new version, always use: Edit (pencil) → Version: "New version" → Deploy
-4. **Never** just save the script and assume the web app updated — it won't
+1. **Run `cleanupPlanDuplicates()`** — select it in the function dropdown and click Run (▶). One-time cleanup of existing duplicate rows. Check Execution Log to confirm.
+2. **Deploy v3** — Deploy → Manage Deployments → pencil → Version: "New version" → Deploy. Add "v3 - upsert per date, no more duplicates" to description.
 
-**Known sheet state issue**: Some phases may have stray rows (workouts that survived a failed "Set up days" run). Fix: open each phase in the Plan tab → "Set up days" → this clears and rewrites all rows for that date range as Rest. Then re-apply workouts.
+After that, "Set up days" is safe to run repeatedly without creating duplicates.
+
+**Verify deployment**: Top of the script file shows `// VERSION: v3`. Deployment description should say v3. Both should match.
 
 ---
 
@@ -39,8 +39,9 @@ Lou is building out phases in the Weeks tab. Current workflow:
 
 ### Strava Sync
 1. Get credentials from the old marathon tracker Settings sheet (Client ID, Secret, Refresh Token)
-2. Add to Vercel env vars: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`
-3. The cron endpoint `/api/cron/strava-sync` is ready — needs credentials + Vercel cron config
+2. Add to `.env.local` AND Vercel env vars: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`
+3. Deploy — `vercel.json` crons are wired (8am ET M-F, 11am ET Sat/Sun → `/api/strava/sync`)
+4. Manual sync button is live on the Today page (small "Sync Strava" link at the bottom)
 
 ### Apple Health (iOS Shortcut)
 Set up after Strava is working. The POST endpoint `/api/health` needs to be built.
@@ -69,7 +70,7 @@ Needs Vercel KV + Anthropic key first (Anthropic key is already set in Vercel). 
 - [x] Anthropic API key: set in Vercel env vars
 - [x] Library sheet wired: LIBRARY_SHEETS_URL set, library picker works in day editor
 - [ ] Vercel KV provisioned and wired
-- [ ] Strava credentials + sync cron job
+- [x] Strava sync code + cron config (vercel.json) — needs credentials to activate
 - [ ] Apple Health iOS Shortcut + POST endpoint
 - [ ] AI coaching cron jobs (needs KV)
 - [ ] Today page: AI coaching note, HRV/sleep display (needs KV + Apple Health)
