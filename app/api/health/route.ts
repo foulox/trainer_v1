@@ -1,0 +1,49 @@
+import { NextResponse } from 'next/server'
+
+export async function POST(req: Request) {
+  const secret = process.env.HEALTH_SYNC_SECRET
+  if (secret) {
+    const auth = req.headers.get('authorization')
+    if (auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const date = typeof body.date === 'string' ? body.date : today
+
+  const data: Record<string, unknown> = {
+    'Date': date,
+    'Resting HR':       body.restingHr     ?? '',
+    'HRV (ms)':         body.hrv           ?? '',
+    'Sleep Hours':      body.sleepHours    ?? '',
+    'Sleep Quality':    body.sleepQuality  ?? '',
+    'Steps':            body.steps         ?? '',
+    'Active Calories':  body.activeCalories ?? '',
+    'VO2 Max':          body.vo2max        ?? '',
+    'Weight (lbs)':     body.weight        ?? '',
+    'Notes':            body.notes         ?? '',
+  }
+
+  try {
+    const res = await fetch(process.env.DATA_SHEETS_URL!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'appendHealth', data }),
+      cache: 'no-store',
+    })
+    const result = await res.json() as { ok: boolean; error?: string }
+    if (!result.ok) throw new Error(result.error ?? 'Sheet write failed')
+    return NextResponse.json({ ok: true, date })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error'
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+  }
+}
