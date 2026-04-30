@@ -11,7 +11,10 @@ export async function POST(req: Request) {
 
   let body: Record<string, unknown>
   try {
-    body = await req.json()
+    const raw = await req.text()
+    console.log('[health] headers:', Object.fromEntries(req.headers.entries()))
+    console.log('[health] body:', raw)
+    body = JSON.parse(raw)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
