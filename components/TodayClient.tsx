@@ -172,6 +172,11 @@ export default function TodayClient({
               {entry.instructions}
             </div>
           )}
+          {entry.notes && (
+            <div className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3 leading-relaxed">
+              {entry.notes}
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
