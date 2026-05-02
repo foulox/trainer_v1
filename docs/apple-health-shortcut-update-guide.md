@@ -52,7 +52,6 @@ The final dictionary should have exactly these entries:
 - `hrv` → hrv
 - `restingHr` → restingHr
 - `respiratoryRate` → respiratoryRate   ← NEW
-- `sleepScore` → sleepScore             ← NEW
 - `sleepHours` → sleepHours             ← FIX (currently broken)
 - `wristTemp` → wristTemp               ← NEW
 - `activeCalories` → activeCalories
@@ -89,14 +88,6 @@ Find Health Samples → Get Numbers from Health Samples → Save to variable.
 - Get Numbers from Health Samples
 - Save to variable: `respiratoryRate`
 
-**New action: Sleep Score**
-- Find Health Samples → Type: **Sleep Score** (search for "sleep score")
-- Sort by: Start Date → Latest First
-- Limit: ON, set to 1
-- Get Numbers from Health Samples
-- Save to variable: `sleepScore`
-- *Note: if "Sleep Score" doesn't appear as a type, skip this one and let me know*
-
 **New action: Wrist Temperature**
 - Find Health Samples → Type: **Apple Sleeping Wrist Temperature**
   (search for "wrist temperature")
@@ -119,7 +110,6 @@ Find Health Samples → Get Numbers from Health Samples → Save to variable.
 
 Add these four new entries to the dictionary:
 - Key: `respiratoryRate`  Value: the `respiratoryRate` variable
-- Key: `sleepScore`       Value: the `sleepScore` variable
 - Key: `wristTemp`        Value: the `wristTemp` variable
 - Key: `cardioRecovery`   Value: the `cardioRecovery` variable
 

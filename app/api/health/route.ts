@@ -27,7 +27,6 @@ export async function POST(req: Request) {
     'Resting HR':          body.restingHr        ?? '',
     'HRV (ms)':            body.hrv              ?? '',
     'Respiratory Rate':    body.respiratoryRate  ?? '',
-    'Sleep Score':         body.sleepScore       ?? '',
     'Sleep Hours':         body.sleepHours       ?? '',
     'Wrist Temp (°C)':     body.wristTemp        ?? '',
     'Active Calories':     body.activeCalories   ?? '',
