@@ -83,7 +83,10 @@ function formatCell(header, value) {
 
 function formatDate(value) {
   if (value instanceof Date) {
-    return Utilities.formatDate(value, 'UTC', 'yyyy-MM-dd')
+    const y = value.getUTCFullYear()
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(value.getUTCDate()).padStart(2, '0')
+    return y + '-' + m + '-' + d
   }
   return String(value).slice(0, 10)
 }
