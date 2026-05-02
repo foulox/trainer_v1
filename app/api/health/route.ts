@@ -23,16 +23,15 @@ export async function POST(req: Request) {
   const date = typeof body.date === 'string' ? body.date : today
 
   const data: Record<string, unknown> = {
-    'Date':             date,
-    'Resting HR':       body.restingHr     ?? '',
-    'HRV (ms)':         body.hrv           ?? '',
-    'Sleep Hours':      body.sleepHours    ?? '',
-    'Steps':            body.steps         ?? '',
-    'Active Calories':  body.activeCalories ?? '',
-    'VO2 Max':          body.vo2max        ?? '',
-    'Weight (lbs)':     body.weight        ?? '',
-    'Water (oz)':       body.water         ?? '',
-    'Notes':            body.notes         ?? '',
+    'Date':                date,
+    'Resting HR':          body.restingHr        ?? '',
+    'HRV (ms)':            body.hrv              ?? '',
+    'Respiratory Rate':    body.respiratoryRate  ?? '',
+    'Sleep Hours':         body.sleepHours       ?? '',
+    'Cardio Recovery':     body.cardioRecovery   ?? '',
+    'VO2 Max':             body.vo2max           ?? '',
+    'Weight (lbs)':        body.weight           ?? '',
+    'Water (oz)':          body.water            ?? '',
   }
 
   try {
