@@ -12,6 +12,7 @@ personal token — after that it runs silently. Takes about 20 minutes to set up
 | Resting HR | Apple Watch | Elevated = fatigue/illness |
 | Respiratory Rate | Apple Watch (during sleep) | Elevated = overtraining signal |
 | Sleep Hours | Apple Watch | Total sleep time |
+| Active Calories | Apple Watch | Daily burn; high load + low HRV = real stress |
 | Cardio Recovery | Apple Watch (post-workout) | HR drop in 1st minute after exercise |
 | VO2 Max | Apple Watch | Updates every few days, not daily |
 | Weight | Connected scale | Via Apple Health |
@@ -197,7 +198,23 @@ Tap result → **Add to Variable** → name it `sleepHours`
 
 ---
 
-### Action 7: Get Cardio Recovery
+### Action 7: Get Active Calories
+
+Search for: **Find Health Samples**
+
+Settings:
+- Type: **Active Energy Burned**
+- Filter: tap **Add Filter**
+  - Start Date → **is after** → **Today at 12:00 AM**
+- Sort by: **Start Date** → **Latest First**
+
+Add **Get Numbers from Health Samples** → **Calculate Statistics** → **Sum**
+
+Tap result → **Add to Variable** → name it `activeCalories`
+
+---
+
+### Action 8: Get Cardio Recovery (heart rate recovery)
 
 Search for: **Find Health Samples**
 
@@ -214,7 +231,7 @@ Tap result → **Add to Variable** → name it `cardioRecovery`
 
 ---
 
-### Action 8: Get VO2 Max
+### Action 9: Get VO2 Max
 
 Search for: **Find Health Samples**
 
@@ -231,7 +248,7 @@ Tap result → **Add to Variable** → name it `vo2max`
 
 ---
 
-### Action 9: Get Weight
+### Action 10: Get Weight
 
 Search for: **Find Health Samples**
 
@@ -246,7 +263,7 @@ Tap result → **Add to Variable** → name it `weight`
 
 ---
 
-### Action 10: Get Water
+### Action 11: Get Water
 
 Search for: **Find Health Samples**
 
@@ -265,7 +282,7 @@ Tap result → **Add to Variable** → name it `water`
 
 ---
 
-### Action 11: Build the data package
+### Action 12: Build the data package
 
 Search for: **Dictionary**
 
@@ -275,6 +292,7 @@ Add these key/value pairs (tap **+** for each one):
 - Key: `restingHr`         Value: Variable → `restingHr`
 - Key: `respiratoryRate`   Value: Variable → `respiratoryRate`
 - Key: `sleepHours`        Value: Variable → `sleepHours`
+- Key: `activeCalories`    Value: Variable → `activeCalories`
 - Key: `cardioRecovery`    Value: Variable → `cardioRecovery`
 - Key: `vo2max`            Value: Variable → `vo2max`
 - Key: `weight`            Value: Variable → `weight`
@@ -282,7 +300,7 @@ Add these key/value pairs (tap **+** for each one):
 
 ---
 
-### Action 12: Send it to the app
+### Action 13: Send it to the app
 
 Search for: **Get Contents of URL**
 
