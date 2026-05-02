@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     'Cardio Recovery':     body.cardioRecovery   ?? '',
     'VO2 Max':             body.vo2max           ?? '',
     'Weight (lbs)':        body.weight           ?? '',
-    'Water (oz)':          body.water            ?? '',
+    'Water':               body.water            ?? '',
   }
 
   try {
