@@ -83,7 +83,7 @@ function formatCell(header, value) {
 
 function formatDate(value) {
   if (value instanceof Date) {
-    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+    return Utilities.formatDate(value, 'UTC', 'yyyy-MM-dd')
   }
   return String(value).slice(0, 10)
 }
