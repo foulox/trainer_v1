@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Copy, Check, Brain } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, Race, StravaActivity } from '@/lib/data'
 import ActivityDrawer from './ActivityDrawer'
 
@@ -176,7 +177,9 @@ export default function WeekClient({
           <div className="text-xs font-bold text-blue-600 tracking-wide">WEEK IN REVIEW</div>
         </div>
         {weekReview ? (
-          <p className="text-sm text-gray-700 leading-relaxed">{weekReview.summary}</p>
+          <div className="prose prose-sm prose-gray max-w-none">
+            <ReactMarkdown>{weekReview.summary}</ReactMarkdown>
+          </div>
         ) : (
           <p className="text-sm text-gray-400 italic">
             Week review generates Sunday night. Check back then.
@@ -187,7 +190,9 @@ export default function WeekClient({
       {weekReview?.ptSummary && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="text-xs font-bold text-gray-500 tracking-wide mb-2">PT SUMMARY</div>
-          <p className="text-sm text-gray-700 leading-relaxed mb-3">{weekReview.ptSummary}</p>
+          <div className="prose prose-sm prose-gray max-w-none mb-3">
+            <ReactMarkdown>{weekReview.ptSummary}</ReactMarkdown>
+          </div>
           <button
             onClick={handleCopy}
             className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm touch-manipulation transition-colors ${

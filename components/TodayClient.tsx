@@ -76,6 +76,7 @@ export default function TodayClient({
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
   const [note, setNote] = useState(coachingNote)
   const [regenerating, startRegenerate] = useTransition()
+  const [reasonExpanded, setReasonExpanded] = useState(false)
 
   function handleRegenerate() {
     startRegenerate(async () => {
@@ -171,19 +172,29 @@ export default function TodayClient({
             {entry.targetPace && <span>{entry.targetPace} /mi</span>}
             {currentPhase && <span>{currentPhase.name}</span>}
           </div>
-          {entry.reason && (
-            <div className="text-sm text-gray-600 mb-3 leading-relaxed">
-              <span className="font-semibold text-gray-700">Purpose: </span>{entry.reason}
-            </div>
-          )}
           {entry.instructions && (
-            <div className="text-sm text-gray-500 leading-relaxed border-t border-gray-100 pt-3">
+            <div className="text-sm text-gray-800 leading-relaxed mb-3">
               {entry.instructions}
             </div>
           )}
+          {entry.reason && (
+            <button
+              onClick={() => setReasonExpanded(v => !v)}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-3"
+            >
+              <span>Why this workout</span>
+              <span>{reasonExpanded ? '▴' : '▾'}</span>
+            </button>
+          )}
+          {entry.reason && reasonExpanded && (
+            <div className="text-sm text-gray-500 leading-relaxed mb-3 pl-2 border-l-2 border-gray-100">
+              {entry.reason}
+            </div>
+          )}
           {entry.notes && (
-            <div className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3 leading-relaxed">
-              {entry.notes}
+            <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2.5 mt-1">
+              <div className="text-xs font-bold text-indigo-400 tracking-wide mb-1">HEAD COACH</div>
+              <div className="text-sm text-indigo-900 leading-relaxed">{entry.notes}</div>
             </div>
           )}
         </div>
