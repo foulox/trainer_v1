@@ -23,8 +23,9 @@ export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNo
     const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
+    const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
 
-    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth)
+    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
     await setCoachingNote(note)
     return note
   } catch {
@@ -45,13 +46,11 @@ export async function regenerateCoachingNote(date: string): Promise<CoachingNote
 
     const phase = phases.find(p => p.startDate <= date && p.endDate >= date)
     const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
-    const recentLog = log
-      .filter(e => e.date < date)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 7)
+    const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
+    const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
 
-    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth)
+    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
     await setCoachingNote(note)
     return note
   } catch {

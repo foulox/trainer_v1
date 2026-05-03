@@ -37,8 +37,12 @@ export async function POST(req: Request) {
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 7)
       const dayHealth = health.find(e => e.date === workout.date)
+      const recentHealth = health
+        .filter(e => e.date < workout.date)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 7)
 
-      const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth)
+      const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
       await setCoachingNote(note)
       generated++
     }

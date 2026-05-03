@@ -17,10 +17,11 @@ export default async function TodayPage() {
   let initialCoachingNote = todayEntry ? await getCoachingNote(today).catch(() => null) : null
   if (!initialCoachingNote && todayEntry && todayEntry.dayType !== 'Rest') {
     const recentLog = log.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const recentHealth = health.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const currentPhase = phases.find(p => p.startDate <= today && p.endDate >= today) ?? phases[0]
     const nextRace = races.filter(r => r.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0]
     initialCoachingNote = await generateCoachingNote(
-      todayEntry, currentPhase, nextRace, recentLog, health.find(e => e.date === today)
+      todayEntry, currentPhase, nextRace, recentLog, health.find(e => e.date === today), recentHealth
     ).catch(() => null)
     if (initialCoachingNote) await setCoachingNote(initialCoachingNote).catch(() => {})
   }

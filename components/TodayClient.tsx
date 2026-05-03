@@ -103,6 +103,14 @@ export default function TodayClient({
   // Derive view data from viewDate
   const viewEntry = plan.find(e => e.date === viewDate) ?? null
   const viewHealth = health.find(e => e.date === viewDate) ?? null
+  const recentHrvValues = health
+    .filter(e => e.date <= viewDate && e.hrv)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7)
+    .map(e => e.hrv!)
+  const hrv7dayAvg = recentHrvValues.length
+    ? Math.round(recentHrvValues.reduce((s, v) => s + v, 0) / recentHrvValues.length)
+    : null
   const viewLogs = log.filter(e => e.date === viewDate)
   const viewPhase = phases.find(p => p.startDate <= viewDate && p.endDate >= viewDate) ?? phases[0] ?? null
   const viewRace = races.filter(r => r.date >= viewDate).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
@@ -214,6 +222,9 @@ export default function TodayClient({
             <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
               <Zap size={10} /> HRV ms
             </div>
+            {hrv7dayAvg && (
+              <div className="text-xs text-gray-300 mt-0.5">{hrv7dayAvg} avg</div>
+            )}
           </div>
           <button
             className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center w-full"

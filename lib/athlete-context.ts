@@ -2,7 +2,16 @@
 // Edit this file when training philosophy, PT directives, or lifestyle context changes.
 
 export const ATHLETE_CONTEXT = `
-ATHLETE: Lou Fox — masters runner, 2026 marathon season.
+ATHLETE: Lou Fox — age 56, masters runner, 2026 marathon season.
+
+HRV BASELINE (past 12 months):
+- Range: 34–66 ms. Personal average: 44 ms.
+- Below 38: significant suppression — consider reducing intensity or volume.
+- 38–44: below average — proceed with planned workout but monitor.
+- 44–55: normal to good — train as planned.
+- Above 55: well-recovered — can push if the plan calls for it.
+- Note: daily HRV reading may be a single measurement, not overnight average.
+  Use 7-day trend alongside today's value for better signal.
 
 PT / COACHING DIRECTIVES:
 - Yoga: 3–4x/week minimum. PT priority — flexibility and mobility are critical at this age.

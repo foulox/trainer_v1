@@ -19,8 +19,9 @@ export async function generateCoachingNote(
   nextRace: Race | undefined,
   recentLog: TrainingLogEntry[],
   todayHealth: HealthEntry | undefined,
+  recentHealth?: HealthEntry[],
 ): Promise<CoachingNote> {
-  const context = buildWorkoutContext(workout, phase, nextRace, recentLog, todayHealth)
+  const context = buildWorkoutContext(workout, phase, nextRace, recentLog, todayHealth, recentHealth)
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
@@ -110,7 +111,13 @@ function buildWorkoutContext(
   nextRace: Race | undefined,
   recentLog: TrainingLogEntry[],
   health: HealthEntry | undefined,
+  recentHealth?: HealthEntry[],
 ): string {
+  const hrvValues = (recentHealth ?? []).filter(h => h.hrv).map(h => h.hrv!)
+  const hrvAvg7 = hrvValues.length
+    ? (hrvValues.reduce((s, v) => s + v, 0) / hrvValues.length).toFixed(1)
+    : null
+
   const lines = [
     `TODAY'S WORKOUT: ${workout.dayType} — ${workout.runType ?? ''} — ${workout.workout ?? 'Unplanned'}`,
     `Distance: ${workout.distance ?? '—'} mi | HR Zone: ${workout.hrZone ?? '—'} | Intensity: ${workout.intensity ?? '—'}`,
@@ -120,12 +127,14 @@ function buildWorkoutContext(
     `CURRENT PHASE: ${phase?.name ?? '—'} — ${phase?.goal ?? ''}`,
     nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — ${nextRace.grade}-race` : '',
     '',
-    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/100`,
+    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/100`,
     '',
     'RECENT TRAINING (last 7 days):',
-    ...recentLog.slice(0, 7).map(e =>
-      `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi in ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | Feel: ${e.postRunFeel ?? '—'}`
-    ),
+    ...recentLog.slice(0, 7).map(e => {
+      const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
+        .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
+      return `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi in ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'} | Notes: ${e.postRunFeel ?? '—'}`
+    }),
   ]
   return lines.filter(Boolean).join('\n')
 }
