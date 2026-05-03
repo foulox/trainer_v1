@@ -1,6 +1,7 @@
 // ============================================================
 // 2026 Lou Fox Training Data — Apps Script
 // Tabs: Strava Data, Apple Health
+// Version: 4
 // ============================================================
 
 function doGet() {
