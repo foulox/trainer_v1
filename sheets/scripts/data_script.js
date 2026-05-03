@@ -1,7 +1,7 @@
 // ============================================================
 // 2026 Lou Fox Training Data — Apps Script
 // Tabs: Strava Data, Apple Health
-// Version: 4
+// Version: 5
 // ============================================================
 
 function doGet() {
@@ -32,7 +32,8 @@ function doPost(e) {
         return ok({ skipped: true, reason: 'Activity already exists' })
       }
 
-      const row = headers.map(h => payload.data[h] ?? '')
+      const now = new Date().toISOString()
+      const row = headers.map(h => h === 'Last Updated' ? now : (payload.data[h] ?? ''))
       sheet.appendRow(row)
       return ok()
     }
@@ -52,14 +53,16 @@ function doPost(e) {
           const formatted = formatDate(dates[i])
           Logger.log('row ' + (i + 2) + ': raw=' + JSON.stringify(String(dates[i])) + ' formatted=' + JSON.stringify(formatted) + ' match=' + (formatted === today))
           if (formatted === today) {
-            const row = headers.map(h => payload.data[h] ?? '')
+            const now = new Date().toISOString()
+            const row = headers.map(h => h === 'Last Updated' ? now : (payload.data[h] ?? ''))
             sheet.getRange(i + 2, 1, 1, row.length).setValues([row])
             return ok({ updated: true })
           }
         }
         Logger.log('appendHealth: no match found, appending')
       }
-      const row = headers.map(h => payload.data[h] ?? '')
+      const now = new Date().toISOString()
+      const row = headers.map(h => h === 'Last Updated' ? now : (payload.data[h] ?? ''))
       sheet.appendRow(row)
       return ok()
     }
