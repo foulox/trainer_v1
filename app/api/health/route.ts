@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
   const data: Record<string, unknown> = {
     'Date':                date,
-    'Resting HR':          body.restingHr        ?? '',
+    'Resting HR':          body.restingHR        ?? body.restingHr ?? '',
     'HRV (ms)':            body.hrv              ?? '',
     'Respiratory Rate':    body.respiratoryRate  ?? '',
     'Sleep Hours':         body.sleepHours       ?? '',
