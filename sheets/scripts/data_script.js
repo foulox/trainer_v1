@@ -43,15 +43,20 @@ function doPost(e) {
 
       // Overwrite today's row if it already exists, otherwise append
       const today = String(payload.data['Date']).trim()
+      Logger.log('appendHealth: today=' + JSON.stringify(today))
       if (sheet.getLastRow() > 1) {
         const dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat()
+        Logger.log('appendHealth: ' + dates.length + ' rows to check')
         for (let i = 0; i < dates.length; i++) {
-          if (formatDate(dates[i]) === today) {
+          const formatted = formatDate(dates[i])
+          Logger.log('row ' + (i + 2) + ': raw=' + JSON.stringify(String(dates[i])) + ' formatted=' + JSON.stringify(formatted) + ' match=' + (formatted === today))
+          if (formatted === today) {
             const row = headers.map(h => payload.data[h] ?? '')
             sheet.getRange(i + 2, 1, 1, row.length).setValues([row])
             return ok({ updated: true })
           }
         }
+        Logger.log('appendHealth: no match found, appending')
       }
       const row = headers.map(h => payload.data[h] ?? '')
       sheet.appendRow(row)
