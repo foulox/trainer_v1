@@ -1,12 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { PlannedWorkout, Phase, Race, TrainingLogEntry, HealthEntry, CoachingNote, WeekReview } from './data'
+import { ATHLETE_CONTEXT } from './athlete-context'
 
 const client = new Anthropic()
 
 const ASSISTANT_COACH_PROMPT = `You are a data-driven assistant coach analyzing an athlete's training metrics.
 Your role is analytical — report what the numbers say. Reference actual values: HRV, zone minutes, pace, volume, RPE.
 Identify patterns, flag concerns, quantify fatigue and readiness. No motivational language, no fluff.
-Format your response in clean markdown. Use **bold** for key numbers and findings.`
+Format your response in clean markdown. Use **bold** for key numbers and findings.
+
+${ATHLETE_CONTEXT}`
 
 const SYSTEM_PROMPT = ASSISTANT_COACH_PROMPT
 
@@ -133,28 +136,48 @@ function buildWeekContext(
   health: HealthEntry[],
   phase: Phase | undefined,
 ): string {
+  const runs = actual.filter(e => /run/i.test(e.activityType))
+  const bikes = actual.filter(e => /ride|bike|cycling/i.test(e.activityType))
+  const yoga = actual.filter(e => /yoga/i.test(e.activityType))
+  const gym = actual.filter(e => /weight|strength|gym|lift/i.test(e.activityType))
+  const climb = actual.filter(e => /climb/i.test(e.activityType))
+  const other = actual.filter(e =>
+    !/run|ride|bike|cycling|yoga|weight|strength|gym|lift|climb/i.test(e.activityType)
+  )
+
   const totalPlanned = planned.reduce((s, w) => s + (w.distance ?? 0), 0)
-  const totalActual = actual.reduce((s, w) => s + (w.distance ?? 0), 0)
+  const totalRunMi = runs.reduce((s, e) => s + (e.distance ?? 0), 0)
   const avgHrv = health.length
     ? (health.reduce((s, h) => s + (h.hrv ?? 0), 0) / health.length).toFixed(1)
     : '—'
-  const avgSleep = health.length
-    ? (health.reduce((s, h) => s + (h.sleepScore ?? 0), 0) / health.length).toFixed(1)
+  const avgSleep = health.filter(h => h.sleepScore).length
+    ? (health.filter(h => h.sleepScore).reduce((s, h) => s + (h.sleepScore ?? 0), 0) /
+       health.filter(h => h.sleepScore).length).toFixed(0)
     : '—'
   const injuryNotes = actual.filter(e => e.injuryNotes).map(e => `  ${e.date}: ${e.injuryNotes}`).join('\n')
 
   const lines = [
     `PHASE: ${phase?.name ?? '—'} — ${phase?.goal ?? ''}`,
     '',
-    `VOLUME: Planned ${totalPlanned.toFixed(1)} mi vs Actual ${totalActual.toFixed(1)} mi`,
+    `RUNNING VOLUME: Planned ${totalPlanned.toFixed(1)} mi vs Actual ${totalRunMi.toFixed(1)} mi`,
     '',
     'PLANNED WORKOUTS:',
     ...planned.map(w => `  ${w.date} (${w.dayType}): ${w.workout ?? 'Rest'} — ${w.distance ?? 0} mi`),
     '',
-    'ACTUAL WORKOUTS:',
-    ...actual.map(e => `  ${e.date}: ${e.activityType} ${e.distance ?? 0} mi | ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | Feel: ${e.postRunFeel ?? '—'}`),
+    'ACTUAL ACTIVITIES:',
+    ...actual.map(e => {
+      const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
+        .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
+      return `  ${e.date}: ${e.activityType} ${e.distance ?? 0} mi | ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'} | Notes: ${e.postRunFeel ?? '—'}`
+    }),
     '',
-    `BODY: Avg HRV ${avgHrv} ms | Avg Sleep ${avgSleep} hrs`,
+    'CROSS-TRAINING SUMMARY:',
+    `  Runs: ${runs.length} | Bike rides: ${bikes.length} | Yoga: ${yoga.length}x | Gym/strength: ${gym.length}x | Climbing: ${climb.length}x`,
+    bikes.length > 0
+      ? `  Bike details: ${bikes.map(b => `${b.date} ${b.duration ?? '—'}min avg HR ${b.avgHr ?? '—'}`).join('; ')}`
+      : '',
+    '',
+    `BODY: Avg HRV ${avgHrv} ms | Avg Sleep Score ${avgSleep}/100`,
     injuryNotes ? `INJURY/BODY NOTES:\n${injuryNotes}` : '',
   ]
   return lines.filter(Boolean).join('\n')
