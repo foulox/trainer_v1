@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity } from '@/lib/data'
 import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
-import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate } from '@/app/actions'
+import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 import ReactMarkdown from 'react-markdown'
 
@@ -94,6 +94,11 @@ export default function TodayClient({
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
   const [regenerating, startRegenerate] = useTransition()
   const [reasonExpanded, setReasonExpanded] = useState(false)
+  const [editingSleep, setEditingSleep] = useState(false)
+  const [sleepInput, setSleepInput] = useState('')
+  const [sleepScore, setSleepScore] = useState<number | null>(
+    () => health.find(e => e.date === today)?.sleepScore ?? null
+  )
 
   // Derive view data from viewDate
   const viewEntry = plan.find(e => e.date === viewDate) ?? null
@@ -115,6 +120,8 @@ export default function TodayClient({
     if (newDate < minDate || newDate > maxDate) return
     setViewDate(newDate)
     setReasonExpanded(false)
+    setEditingSleep(false)
+    setSleepScore(health.find(e => e.date === newDate)?.sleepScore ?? null)
     if (newDate === today) {
       setNote(initialCoachingNote)
       return
@@ -208,12 +215,37 @@ export default function TodayClient({
               <Zap size={10} /> HRV ms
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-            <div className="text-lg font-bold text-gray-900">{viewHealth.sleepHours ?? '—'}</div>
+          <button
+            className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center w-full"
+            onClick={() => { setSleepInput(String(sleepScore ?? '')); setEditingSleep(true) }}
+          >
+            {editingSleep ? (
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={sleepInput}
+                autoFocus
+                className="text-lg font-bold text-gray-900 w-full text-center bg-transparent outline-none"
+                onClick={e => e.stopPropagation()}
+                onChange={e => setSleepInput(e.target.value)}
+                onBlur={async () => {
+                  setEditingSleep(false)
+                  const val = parseInt(sleepInput)
+                  if (!isNaN(val) && val >= 0 && val <= 100) {
+                    setSleepScore(val)
+                    await saveSleepScore(viewDate, val)
+                  }
+                }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              />
+            ) : (
+              <div className="text-lg font-bold text-gray-900">{sleepScore ?? '—'}</div>
+            )}
             <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
-              <Moon size={10} /> Sleep h
+              <Moon size={10} /> Sleep
             </div>
-          </div>
+          </button>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
             <div className="text-lg font-bold text-gray-900">{viewHealth.restingHr ?? '—'}</div>
             <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">

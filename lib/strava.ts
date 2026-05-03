@@ -66,7 +66,7 @@ async function getAccessToken(): Promise<string> {
   return data.access_token
 }
 
-export type SyncResult = { added: number; skipped: number; errors: number }
+export type SyncResult = { added: number; updated: number; skipped: number; errors: number }
 
 export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
   const [accessToken, { plan }] = await Promise.all([
@@ -87,7 +87,7 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
     throw new Error('Unexpected Strava response: ' + JSON.stringify(activities).slice(0, 200))
   }
 
-  let added = 0, skipped = 0, errors = 0
+  let added = 0, updated = 0, skipped = 0, errors = 0
 
   for (const act of activities) {
     try {
@@ -124,7 +124,26 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
         body: JSON.stringify({ action: 'appendStrava', data: stravaRow }),
         cache: 'no-store',
       })
-      const dataResult = await dataRes.json() as { ok: boolean; skipped?: boolean }
+      const dataResult = await dataRes.json() as { ok: boolean; skipped?: boolean; updated?: boolean }
+
+      if (dataResult.updated) {
+        // Activity already logged — just sync description and RPE changes
+        await fetch(process.env.LOG_SHEETS_URL!, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'updateLog',
+            data: {
+              'Strava ID': String(act.id),
+              'Post-Run Feel': act.description ?? '',
+              'RPE': act.perceived_exertion ?? '',
+            },
+          }),
+          cache: 'no-store',
+        })
+        updated++
+        continue
+      }
 
       if (dataResult.skipped) { skipped++; continue }
 
@@ -173,5 +192,5 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
     }
   }
 
-  return { added, skipped, errors }
+  return { added, updated, skipped, errors }
 }

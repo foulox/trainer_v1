@@ -19,23 +19,54 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents)
 
-    // Append a Strava activity (called by the Vercel cron sync)
+    // Append or update a Strava activity (called by the Vercel cron sync)
     if (payload.action === 'appendStrava') {
       const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Strava Data')
       const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+      const now = new Date().toISOString()
 
-      // Deduplicate by Activity ID
       const existingIds = sheet.getLastRow() > 1
         ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String)
         : []
-      if (existingIds.includes(String(payload.data['Activity ID']))) {
-        return ok({ skipped: true, reason: 'Activity already exists' })
+      const existingIndex = existingIds.indexOf(String(payload.data['Activity ID']))
+
+      if (existingIndex !== -1) {
+        // Update existing row so description/RPE changes in Strava are reflected
+        const row = headers.map(h => h === 'Last Updated' ? now : (payload.data[h] ?? ''))
+        sheet.getRange(existingIndex + 2, 1, 1, row.length).setValues([row])
+        return ok({ updated: true })
       }
 
-      const now = new Date().toISOString()
       const row = headers.map(h => h === 'Last Updated' ? now : (payload.data[h] ?? ''))
       sheet.appendRow(row)
       return ok()
+    }
+
+    // Partially update an Apple Health row by date (only updates fields present in payload)
+    if (payload.action === 'patchHealth') {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Apple Health')
+      const data = sheet.getDataRange().getValues()
+      const headers = data[0]
+      const today = String(payload.data['Date']).trim()
+
+      for (let i = 1; i < data.length; i++) {
+        if (formatDate(data[i][0]) === today) {
+          const now = new Date().toISOString()
+          headers.forEach((h, col) => {
+            if (h === 'Last Updated') {
+              sheet.getRange(i + 1, col + 1).setValue(now)
+            } else if (payload.data[h] !== undefined) {
+              sheet.getRange(i + 1, col + 1).setValue(payload.data[h])
+            }
+          })
+          return ok({ updated: true })
+        }
+      }
+      // No row for this date yet — append a minimal row
+      const now = new Date().toISOString()
+      const row = headers.map(h => h === 'Last Updated' ? now : (payload.data[h] ?? ''))
+      sheet.appendRow(row)
+      return ok({ appended: true })
     }
 
     // Append an Apple Health entry (called by iOS Shortcut)

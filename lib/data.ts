@@ -66,8 +66,7 @@ export type HealthEntry = {
   date: string
   restingHr: number | null
   hrv: number | null
-  sleepHours: number | null
-  sleepQuality: string | null
+  sleepScore: number | null   // SleepWatch score 0–100, stored in "Sleep Quality" sheet column
   steps: number | null
   activeCalories: number | null
   vo2max: number | null

@@ -247,6 +247,16 @@ export async function regenerateWeekReview(weekStart: string): Promise<WeekRevie
   }
 }
 
+export async function saveSleepScore(date: string, score: number): Promise<void> {
+  await fetch(process.env.DATA_SHEETS_URL!, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'patchHealth', data: { 'Date': date, 'Sleep Quality': score } }),
+    cache: 'no-store',
+  })
+  revalidatePath('/')
+}
+
 export async function syncStrava(): Promise<{ added: number; skipped: number; errors: number }> {
   const { syncStravaActivities } = await import('@/lib/strava')
   const result = await syncStravaActivities()

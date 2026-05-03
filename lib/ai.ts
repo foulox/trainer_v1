@@ -117,7 +117,7 @@ function buildWorkoutContext(
     `CURRENT PHASE: ${phase?.name ?? '—'} — ${phase?.goal ?? ''}`,
     nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — ${nextRace.grade}-race` : '',
     '',
-    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep ${health?.sleepHours ?? '—'} hrs`,
+    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/100`,
     '',
     'RECENT TRAINING (last 7 days):',
     ...recentLog.slice(0, 7).map(e =>
@@ -139,7 +139,7 @@ function buildWeekContext(
     ? (health.reduce((s, h) => s + (h.hrv ?? 0), 0) / health.length).toFixed(1)
     : '—'
   const avgSleep = health.length
-    ? (health.reduce((s, h) => s + (h.sleepHours ?? 0), 0) / health.length).toFixed(1)
+    ? (health.reduce((s, h) => s + (h.sleepScore ?? 0), 0) / health.length).toFixed(1)
     : '—'
   const injuryNotes = actual.filter(e => e.injuryNotes).map(e => `  ${e.date}: ${e.injuryNotes}`).join('\n')
 
