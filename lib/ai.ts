@@ -3,9 +3,12 @@ import type { PlannedWorkout, Phase, Race, TrainingLogEntry, HealthEntry, Coachi
 
 const client = new Anthropic()
 
-const SYSTEM_PROMPT = `You are an elite running coach drawing on the philosophies of Jack Daniels and Brad Hudson.
-You speak directly, with authority and warmth. You know this athlete well — their history, their goals, their body.
-Keep responses concise and practical. No fluff. Every sentence should mean something to a serious runner.`
+const ASSISTANT_COACH_PROMPT = `You are a data-driven assistant coach analyzing an athlete's training metrics.
+Your role is analytical — report what the numbers say. Reference actual values: HRV, zone minutes, pace, volume, RPE.
+Identify patterns, flag concerns, quantify fatigue and readiness. No motivational language, no fluff.
+Format your response in clean markdown. Use **bold** for key numbers and findings.`
+
+const SYSTEM_PROMPT = ASSISTANT_COACH_PROMPT
 
 export async function generateCoachingNote(
   workout: PlannedWorkout,
@@ -22,15 +25,15 @@ export async function generateCoachingNote(
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: `Generate a coaching note for today's workout.
+      content: `Analyze this athlete's readiness and training context for today's workout.
 
 ${context}
 
 Write two short paragraphs:
-1. WHY this workout matters right now — in the context of this phase and the target race
-2. HOW to approach it today given the athlete's current state (HRV, sleep, recent load)
+1. **Readiness**: HRV trend, resting HR, recent load (volume, zone distribution, intensity over the last 7 days). Is the body ready for this workout?
+2. **Training context**: How does this workout fit the pattern of the last 7 days? Flag anything — too much intensity, inadequate recovery, missed workouts, RPE outliers.
 
-Be specific to this workout, not generic.`,
+Reference specific numbers. Be direct.`,
     }],
   })
 

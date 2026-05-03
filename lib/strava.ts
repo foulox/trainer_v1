@@ -15,6 +15,7 @@ type StravaApiActivity = {
   total_elevation_gain: number
   start_date_local: string
   description?: string | null
+  perceived_exertion?: number | null
 }
 
 function toPace(metersPerSec: number): string | null {
@@ -145,7 +146,7 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
         'Avg HR': act.average_heartrate ?? '',
         'Max HR': act.max_heartrate ?? '',
         'Elevation (ft)': elevFt ?? '',
-        'RPE': '',
+        'RPE': act.perceived_exertion ?? '',
         'Effort Feel': '',
         'Post-Run Feel': act.description ?? '',
         'Strava ID': String(act.id),

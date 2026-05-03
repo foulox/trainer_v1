@@ -5,6 +5,7 @@ import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, Coachi
 import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
+import ReactMarkdown from 'react-markdown'
 
 const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
 const ZONE_LABELS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']
@@ -274,12 +275,6 @@ export default function TodayClient({
               {displayEntry.reason}
             </div>
           )}
-          {displayEntry.notes && (
-            <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2.5 mt-1">
-              <div className="text-xs font-bold text-indigo-400 tracking-wide mb-1">HEAD COACH</div>
-              <div className="text-sm text-indigo-900 leading-relaxed">{displayEntry.notes}</div>
-            </div>
-          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
@@ -287,15 +282,24 @@ export default function TodayClient({
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+      {displayEntry && displayEntry.notes && displayEntry.date === viewDate && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-xs font-bold text-indigo-500 tracking-wide">HEAD COACH</div>
+          </div>
+          <p className="text-sm text-indigo-900 leading-relaxed">{displayEntry.notes}</p>
+        </div>
+      )}
+
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-2">
-          <Brain size={14} className="text-blue-500" />
-          <div className="text-xs font-bold text-blue-600 tracking-wide">COACHING TAKE</div>
+          <Brain size={14} className="text-slate-500" />
+          <div className="text-xs font-bold text-slate-600 tracking-wide">ASSISTANT COACH</div>
           {displayEntry && displayEntry.dayType !== 'Rest' && displayEntry.date === viewDate && (
             <button
               onClick={handleRegenerate}
               disabled={regenerating || noteLoading}
-              className="ml-auto text-blue-400 hover:text-blue-600 disabled:opacity-40"
+              className="ml-auto text-slate-400 hover:text-slate-600 disabled:opacity-40"
             >
               <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
             </button>
@@ -304,12 +308,14 @@ export default function TodayClient({
         {regenerating || noteLoading ? (
           <p className="text-sm text-gray-400 italic">Generating...</p>
         ) : note ? (
-          <p className="text-sm text-gray-700 leading-relaxed">{note.coachingTake}</p>
+          <div className="prose prose-sm prose-slate max-w-none">
+            <ReactMarkdown>{note.coachingTake}</ReactMarkdown>
+          </div>
         ) : (
           <p className="text-sm text-gray-400 italic">
             {displayEntry && displayEntry.date === viewDate
-              ? 'Tap ↻ to generate a coaching note.'
-              : 'No workout planned — no coaching note needed.'}
+              ? 'Tap ↻ to generate analysis.'
+              : 'No workout planned — no analysis needed.'}
           </p>
         )}
       </div>

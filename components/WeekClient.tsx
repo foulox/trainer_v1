@@ -258,7 +258,16 @@ export default function WeekClient({
 
       {review?.ptSummary && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="text-xs font-bold text-gray-500 tracking-wide mb-2">PT SUMMARY</div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-xs font-bold text-gray-500 tracking-wide">PT SUMMARY</div>
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              className="ml-auto text-gray-400 hover:text-gray-600 disabled:opacity-40"
+            >
+              <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
+            </button>
+          </div>
           <div className="prose prose-sm prose-gray max-w-none mb-3">
             <ReactMarkdown>{review.ptSummary}</ReactMarkdown>
           </div>
