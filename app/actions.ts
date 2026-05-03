@@ -2,9 +2,35 @@
 
 import { revalidatePath } from 'next/cache'
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
-import { generateCoachingNote } from '@/lib/ai'
-import { setCoachingNote } from '@/lib/kv'
-import type { CoachingNote } from '@/lib/data'
+import { generateCoachingNote, generateWeekReview } from '@/lib/ai'
+import { getCoachingNote, setCoachingNote, getWeekReview, setWeekReview } from '@/lib/kv'
+import type { CoachingNote, WeekReview } from '@/lib/data'
+
+export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNote | null> {
+  try {
+    const cached = await getCoachingNote(date).catch(() => null)
+    if (cached) return cached
+
+    const [{ plan, phases, races }, { health }, log] = await Promise.all([
+      fetchPlanData(),
+      fetchTrainingData(),
+      fetchTrainingLog(),
+    ])
+    const workout = plan.find(e => e.date === date)
+    if (!workout || workout.dayType === 'Rest') return null
+
+    const phase = phases.find(p => p.startDate <= date && p.endDate >= date)
+    const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
+    const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const dayHealth = health.find(e => e.date === date)
+
+    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth)
+    await setCoachingNote(note)
+    return note
+  } catch {
+    return null
+  }
+}
 
 export async function regenerateCoachingNote(date: string): Promise<CoachingNote | null> {
   try {
@@ -192,6 +218,33 @@ export async function applyWorkoutToWeekday(payload: {
   await postToPlanOrThrow({ action: 'batchUpsertByWeekday', ...payload })
   revalidatePath('/plan')
   revalidatePath('/')
+}
+
+export async function regenerateWeekReview(weekStart: string): Promise<WeekReview | null> {
+  try {
+    const weekEnd = new Date(new Date(weekStart + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10)
+
+    const [{ plan, phases }, { health }, log] = await Promise.all([
+      fetchPlanData({ fresh: true }),
+      fetchTrainingData({ fresh: true }),
+      fetchTrainingLog({ fresh: true }),
+    ])
+
+    const weekPlan = plan.filter(e => e.date >= weekStart && e.date <= weekEnd)
+    const weekLog = log.filter(e => e.date >= weekStart && e.date <= weekEnd)
+    const weekHealth = health.filter(e => e.date >= weekStart && e.date <= weekEnd)
+    const weekNum = weekPlan[0]?.week ?? 0
+    const phase =
+      phases.find(p => p.startDate <= weekStart && p.endDate >= weekStart) ??
+      phases.find(p => p.startDate <= weekEnd && p.endDate >= weekEnd)
+
+    const review = await generateWeekReview(weekNum, weekStart, weekEnd, weekPlan, weekLog, weekHealth, phase)
+    await setWeekReview(review)
+    return review
+  } catch {
+    return null
+  }
 }
 
 export async function syncStrava(): Promise<{ added: number; skipped: number; errors: number }> {

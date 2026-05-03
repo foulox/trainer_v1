@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { Copy, Check, Brain } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { Copy, Check, Brain, RefreshCw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, Race, StravaActivity } from '@/lib/data'
+import { regenerateWeekReview } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 
 const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
+const ZONE_LABELS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']
 
 function fmt(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -45,6 +47,45 @@ function ZoneBar({ logs }: { logs: TrainingLogEntry[] }) {
   )
 }
 
+function DaySummary({ logs }: { logs: TrainingLogEntry[] }) {
+  const totals = [
+    logs.reduce((s, l) => s + (l.zone1 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone2 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone3 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone4 ?? 0), 0),
+    logs.reduce((s, l) => s + (l.zone5 ?? 0), 0),
+  ]
+  const totalMin = totals.reduce((s, v) => s + v, 0)
+  const totalDist = logs.reduce((s, l) => s + (l.distance ?? 0), 0)
+  const avgHr = logs.filter(l => l.avgHr).length
+    ? Math.round(logs.reduce((s, l) => s + (l.avgHr ?? 0), 0) / logs.filter(l => l.avgHr).length)
+    : null
+
+  return (
+    <div className="mt-3 pl-11 border-t border-gray-100 pt-3">
+      <div className="flex gap-4 text-xs text-gray-500 mb-2">
+        {totalDist > 0 && <span className="font-semibold text-gray-700">{totalDist.toFixed(1)} mi total</span>}
+        {totalMin > 0 && <span>{totalMin} min</span>}
+        {avgHr && <span>{avgHr} bpm avg</span>}
+      </div>
+      {totalMin > 0 && (
+        <div className="flex flex-col gap-1">
+          {totals.map((t, i) => t > 0 ? (
+            <div key={i} className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full shrink-0 ${ZONE_COLORS[i]}`} />
+              <div className="text-xs text-gray-500 w-5">{ZONE_LABELS[i]}</div>
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full ${ZONE_COLORS[i]}`} style={{ width: `${(t / totalMin) * 100}%` }} />
+              </div>
+              <div className="text-xs text-gray-400 w-10 text-right">{t} min</div>
+            </div>
+          ) : null)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Props = {
   today: string
   weekStart: string
@@ -63,18 +104,28 @@ export default function WeekClient({
   today, weekStart, weekEnd, weekNum, weekPlan, weekLog,
   weekHealth, weekReview, currentPhase, stravaActivities,
 }: Props) {
+  const [review, setReview] = useState(weekReview)
   const [copied, setCopied] = useState(false)
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
+  const [expandedDay, setExpandedDay] = useState<string | null>(null)
+  const [regenerating, startRegenerate] = useTransition()
 
   const plannedMiles = weekPlan.reduce((s, e) => s + (e.distance ?? 0), 0)
   const actualMiles = weekLog.reduce((s, e) => s + (e.distance ?? 0), 0)
   const pct = plannedMiles > 0 ? Math.min(100, Math.round((actualMiles / plannedMiles) * 100)) : 0
 
   function handleCopy() {
-    if (!weekReview?.ptSummary) return
-    navigator.clipboard.writeText(weekReview.ptSummary).then(() => {
+    if (!review?.ptSummary) return
+    navigator.clipboard.writeText(review.ptSummary).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function handleRegenerate() {
+    startRegenerate(async () => {
+      const fresh = await regenerateWeekReview(weekStart)
+      if (fresh) setReview(fresh)
     })
   }
 
@@ -108,40 +159,47 @@ export default function WeekClient({
           const isToday = entry.date === today
           const isPast = entry.date < today
           const totalActualMi = dayLogs.reduce((s, l) => s + (l.distance ?? 0), 0)
+          const isExpanded = expandedDay === entry.date
 
           return (
             <div
               key={entry.date}
               className={`bg-white rounded-2xl border shadow-sm p-3 ${isToday ? 'border-blue-200' : 'border-gray-100'}`}
             >
-              {/* Date + planned row */}
-              <div className="flex items-center gap-3">
-                <div className="text-center w-8 shrink-0">
-                  <div className="text-xs font-semibold text-gray-400">{fmtDay(entry.date)}</div>
-                  <div className="text-sm font-bold text-gray-900">{new Date(entry.date + 'T00:00:00').getDate()}</div>
-                </div>
-                <div className={`w-2 h-2 rounded-full shrink-0 ${runTypeDot(entry)}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-900 truncate">
-                    {entry.workout ?? entry.runType ?? entry.dayType}
+              {/* Tappable day header */}
+              <button
+                className="w-full text-left"
+                onClick={() => setExpandedDay(isExpanded ? null : entry.date)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-center w-8 shrink-0">
+                    <div className="text-xs font-semibold text-gray-400">{fmtDay(entry.date)}</div>
+                    <div className="text-sm font-bold text-gray-900">{new Date(entry.date + 'T00:00:00').getDate()}</div>
                   </div>
-                  <div className="text-xs text-gray-400">
-                    {entry.distance ? `${entry.distance} mi planned` : entry.dayType}
-                  </div>
-                </div>
-                {dayLogs.length > 0 ? (
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold text-emerald-600">{totalActualMi.toFixed(1)} mi</div>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${runTypeDot(entry)}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-gray-900 truncate">
+                      {entry.workout ?? entry.runType ?? entry.dayType}
+                    </div>
                     <div className="text-xs text-gray-400">
-                      {dayLogs.reduce((s, l) => s + (l.duration ?? 0), 0)} min
+                      {entry.distance ? `${entry.distance} mi planned` : entry.dayType}
                     </div>
                   </div>
-                ) : isPast && entry.dayType !== 'Rest' ? (
-                  <div className="text-xs text-amber-500 font-medium shrink-0">Not logged</div>
-                ) : null}
-              </div>
+                  {dayLogs.length > 0 ? (
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-semibold text-emerald-600">{totalActualMi.toFixed(1)} mi</div>
+                      <div className="text-xs text-gray-400">
+                        {dayLogs.reduce((s, l) => s + (l.duration ?? 0), 0)} min
+                      </div>
+                    </div>
+                  ) : isPast && entry.dayType !== 'Rest' ? (
+                    <div className="text-xs text-amber-500 font-medium shrink-0">Not logged</div>
+                  ) : null}
+                </div>
+                {dayLogs.length > 0 && !isExpanded && <ZoneBar logs={dayLogs} />}
+              </button>
 
-              {/* Logged activities */}
+              {/* Individual activity rows — stopPropagation so they don't toggle expand */}
               {dayLogs.length > 0 && (
                 <div className="mt-2 pl-11 flex flex-col gap-1">
                   {dayLogs.map((log, i) => {
@@ -150,10 +208,10 @@ export default function WeekClient({
                     return (
                       <button
                         key={i}
-                        onClick={() => setSelected(log)}
+                        onClick={e => { e.stopPropagation(); setSelected(log) }}
                         className="text-left flex items-center gap-2 py-0.5"
                       >
-                        <span className="text-xs text-gray-700 font-medium truncate">{name}</span>
+                        <span className="text-xs text-blue-600 underline font-medium truncate">{name}</span>
                         {log.distance && (
                           <span className="text-xs text-gray-400 shrink-0">{log.distance} mi</span>
                         )}
@@ -163,9 +221,11 @@ export default function WeekClient({
                       </button>
                     )
                   })}
-                  <ZoneBar logs={dayLogs} />
                 </div>
               )}
+
+              {/* Expanded day summary */}
+              {isExpanded && dayLogs.length > 0 && <DaySummary logs={dayLogs} />}
             </div>
           )
         })}
@@ -175,23 +235,32 @@ export default function WeekClient({
         <div className="flex items-center gap-2 mb-2">
           <Brain size={14} className="text-blue-500" />
           <div className="text-xs font-bold text-blue-600 tracking-wide">WEEK IN REVIEW</div>
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="ml-auto text-blue-400 hover:text-blue-600 disabled:opacity-40"
+          >
+            <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
+          </button>
         </div>
-        {weekReview ? (
+        {regenerating ? (
+          <p className="text-sm text-gray-400 italic">Generating...</p>
+        ) : review ? (
           <div className="prose prose-sm prose-gray max-w-none">
-            <ReactMarkdown>{weekReview.summary}</ReactMarkdown>
+            <ReactMarkdown>{review.summary}</ReactMarkdown>
           </div>
         ) : (
           <p className="text-sm text-gray-400 italic">
-            Week review generates Sunday night. Check back then.
+            Tap ↻ to generate this week&apos;s review.
           </p>
         )}
       </div>
 
-      {weekReview?.ptSummary && (
+      {review?.ptSummary && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="text-xs font-bold text-gray-500 tracking-wide mb-2">PT SUMMARY</div>
           <div className="prose prose-sm prose-gray max-w-none mb-3">
-            <ReactMarkdown>{weekReview.ptSummary}</ReactMarkdown>
+            <ReactMarkdown>{review.ptSummary}</ReactMarkdown>
           </div>
           <button
             onClick={handleCopy}
