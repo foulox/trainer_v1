@@ -42,7 +42,7 @@ function doPost(e) {
       const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
 
       // Overwrite today's row if it already exists, otherwise append
-      const today = payload.data['Date']
+      const today = String(payload.data['Date']).trim()
       if (sheet.getLastRow() > 1) {
         const dates = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat()
         for (let i = 0; i < dates.length; i++) {
