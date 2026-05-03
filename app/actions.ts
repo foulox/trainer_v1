@@ -1,6 +1,37 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
+import { generateCoachingNote } from '@/lib/ai'
+import { setCoachingNote } from '@/lib/kv'
+import type { CoachingNote } from '@/lib/data'
+
+export async function regenerateCoachingNote(date: string): Promise<CoachingNote | null> {
+  try {
+    const [{ plan, phases, races }, { health }, log] = await Promise.all([
+      fetchPlanData({ fresh: true }),
+      fetchTrainingData({ fresh: true }),
+      fetchTrainingLog({ fresh: true }),
+    ])
+
+    const workout = plan.find(e => e.date === date)
+    if (!workout || workout.dayType === 'Rest') return null
+
+    const phase = phases.find(p => p.startDate <= date && p.endDate >= date)
+    const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
+    const recentLog = log
+      .filter(e => e.date < date)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 7)
+    const dayHealth = health.find(e => e.date === date)
+
+    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth)
+    await setCoachingNote(note)
+    return note
+  } catch {
+    return null
+  }
+}
 
 type PlanDayPayload = {
   date: string

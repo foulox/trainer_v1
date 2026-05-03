@@ -17,9 +17,9 @@ export async function POST(req: Request) {
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
     const [{ plan, phases, races }, { health }, log] = await Promise.all([
-      fetchPlanData(),
-      fetchTrainingData(),
-      fetchTrainingLog(),
+      fetchPlanData({ fresh: true }),
+      fetchTrainingData({ fresh: true }),
+      fetchTrainingLog({ fresh: true }),
     ])
 
     const upcomingWorkouts = plan.filter(

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity } from '@/lib/data'
 import { Brain, Zap, Moon, Heart, RefreshCw } from 'lucide-react'
-import { syncStrava } from '@/app/actions'
+import { syncStrava, regenerateCoachingNote } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 
 const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
@@ -74,6 +74,15 @@ export default function TodayClient({
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
+  const [note, setNote] = useState(coachingNote)
+  const [regenerating, startRegenerate] = useTransition()
+
+  function handleRegenerate() {
+    startRegenerate(async () => {
+      const fresh = await regenerateCoachingNote(today)
+      if (fresh) setNote(fresh)
+    })
+  }
 
   async function handleSync() {
     setSyncing(true)
@@ -188,9 +197,20 @@ export default function TodayClient({
         <div className="flex items-center gap-2 mb-2">
           <Brain size={14} className="text-blue-500" />
           <div className="text-xs font-bold text-blue-600 tracking-wide">COACHING TAKE</div>
+          {entry && entry.dayType !== 'Rest' && (
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              className="ml-auto text-blue-400 hover:text-blue-600 disabled:opacity-40"
+            >
+              <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
+            </button>
+          )}
         </div>
-        {coachingNote ? (
-          <p className="text-sm text-gray-700 leading-relaxed">{coachingNote.coachingTake}</p>
+        {regenerating ? (
+          <p className="text-sm text-gray-400 italic">Generating...</p>
+        ) : note ? (
+          <p className="text-sm text-gray-700 leading-relaxed">{note.coachingTake}</p>
         ) : (
           <p className="text-sm text-gray-400 italic">
             {entry

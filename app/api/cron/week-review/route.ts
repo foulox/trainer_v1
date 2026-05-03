@@ -31,9 +31,9 @@ export async function POST(req: Request) {
     const { start, end } = getWeekBounds(yesterday)
 
     const [{ plan, phases }, { health }, log] = await Promise.all([
-      fetchPlanData(),
-      fetchTrainingData(),
-      fetchTrainingLog(),
+      fetchPlanData({ fresh: true }),
+      fetchTrainingData({ fresh: true }),
+      fetchTrainingLog({ fresh: true }),
     ])
 
     const weekPlan = plan.filter(e => e.date >= start && e.date <= end)

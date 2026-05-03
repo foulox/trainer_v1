@@ -148,9 +148,13 @@ function mapLog(row: Row): TrainingLogEntry {
   }
 }
 
-async function fetchSheet<T>(url: string, mapper: (row: Row) => T): Promise<T[]> {
+function cacheOpt(fresh?: boolean) {
+  return fresh ? { cache: 'no-store' as const } : { next: { revalidate: 300 } }
+}
+
+async function fetchSheet<T>(url: string, mapper: (row: Row) => T, fresh?: boolean): Promise<T[]> {
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } })
+    const res = await fetch(url, cacheOpt(fresh))
     const json = await res.json() as { rows: Row[] }
     return json.rows.map(mapper).filter(Boolean)
   } catch {
@@ -158,10 +162,10 @@ async function fetchSheet<T>(url: string, mapper: (row: Row) => T): Promise<T[]>
   }
 }
 
-export async function fetchPlanData() {
+export async function fetchPlanData(opts?: { fresh?: boolean }) {
   const url = process.env.PLAN_SHEETS_URL!
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } })
+    const res = await fetch(url, cacheOpt(opts?.fresh))
     const json = await res.json() as { plan: Row[], phases: Row[], races: Row[] }
     const allRows = json.plan.map(mapPlan).filter(e => e.date)
     const byDate = new Map<string, PlannedWorkout>()
@@ -181,10 +185,10 @@ export async function fetchPlanData() {
   }
 }
 
-export async function fetchTrainingData() {
+export async function fetchTrainingData(opts?: { fresh?: boolean }) {
   const url = process.env.DATA_SHEETS_URL!
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } })
+    const res = await fetch(url, cacheOpt(opts?.fresh))
     const json = await res.json() as { strava: Row[], health: Row[] }
     return {
       strava: json.strava.map(mapStrava).filter(e => e.activityId),
@@ -207,10 +211,10 @@ export async function fetchLibrary(): Promise<LibraryWorkout[]> {
   }
 }
 
-export async function fetchTrainingLog() {
+export async function fetchTrainingLog(opts?: { fresh?: boolean }) {
   const url = process.env.LOG_SHEETS_URL!
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } })
+    const res = await fetch(url, cacheOpt(opts?.fresh))
     const json = await res.json() as { log: Row[] }
     return json.log.map(mapLog).filter(e => e.date)
   } catch {
