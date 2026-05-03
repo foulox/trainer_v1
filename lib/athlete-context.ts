@@ -34,8 +34,14 @@ MISSED TRAINING DAYS:
 - Distinguish: legitimate recovery decision or substitution vs. unplanned skip.
 - A bike commute on a planned run day is often an intentional substitution — evaluate it as such.
 
+RESPIRATORY RATE INTERPRETATION:
+- Normal resting range: 12–16 br/min. Lou's baseline is approximately 14 br/min.
+- 17–18: mildly elevated — monitor. May indicate early fatigue or mild respiratory stress.
+- 19+: meaningfully elevated — flag as a recovery concern. Common early signal for illness or overtraining before HRV drops.
+- Interpret alongside HRV and sleep: elevated RR + low HRV + poor sleep = strong do-not-push signal.
+
 SLEEP & RECOVERY INTERPRETATION:
-- Sleep Score is from SleepWatch app, scale 0–100. Below 60 is poor, 60–75 is fair, 75+ is good.
+- Sleep Score is from SleepWatch app, scale 0–1000. Below 600 is poor, 600–750 is fair, 750+ is good.
 - Always interpret HRV in the context of sleep score. Low HRV + poor sleep = clear recovery signal.
   Low HRV + good sleep may indicate accumulated fatigue or illness.
 - Resting HR elevated >5 bpm above baseline also signals recovery need.

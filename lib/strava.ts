@@ -18,6 +18,10 @@ type StravaApiActivity = {
   perceived_exertion?: number | null
 }
 
+type StravaApiActivityDetail = StravaApiActivity & {
+  private_note?: string | null
+}
+
 function toPace(metersPerSec: number): string | null {
   if (!metersPerSec) return null
   const minPerMile = 1609.344 / metersPerSec / 60
@@ -28,6 +32,21 @@ function toPace(metersPerSec: number): string | null {
 
 type ZoneBucket = { time: number }
 type ZoneData = { type: string; distribution_buckets: ZoneBucket[] }
+
+async function fetchActivityDetail(
+  accessToken: string,
+  activityId: number
+): Promise<StravaApiActivityDetail | null> {
+  try {
+    const res = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' }
+    )
+    return await res.json() as StravaApiActivityDetail
+  } catch {
+    return null
+  }
+}
 
 async function fetchZones(
   accessToken: string,
@@ -127,7 +146,11 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
       const dataResult = await dataRes.json() as { ok: boolean; skipped?: boolean; updated?: boolean }
 
       if (dataResult.updated) {
-        // Activity already logged — just sync description and RPE changes
+        // Activity already logged — sync private_note, description, and RPE from detail endpoint
+        const detail = await fetchActivityDetail(accessToken, act.id)
+        const postRunFeel = [detail?.private_note, detail?.description ?? act.description]
+          .filter(Boolean).join(' | ')
+        const rpe = detail?.perceived_exertion ?? act.perceived_exertion ?? ''
         await fetch(process.env.LOG_SHEETS_URL!, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -135,8 +158,8 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
             action: 'updateLog',
             data: {
               'Strava ID': String(act.id),
-              'Post-Run Feel': act.description ?? '',
-              'RPE': act.perceived_exertion ?? '',
+              'Post-Run Feel': postRunFeel,
+              'RPE': rpe,
             },
           }),
           cache: 'no-store',
@@ -147,9 +170,16 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
 
       if (dataResult.skipped) { skipped++; continue }
 
-      const zones = act.average_heartrate
-        ? await fetchZones(accessToken, act.id)
-        : ([0, 0, 0, 0, 0] as [number, number, number, number, number])
+      const [detail, zones] = await Promise.all([
+        fetchActivityDetail(accessToken, act.id),
+        act.average_heartrate
+          ? fetchZones(accessToken, act.id)
+          : Promise.resolve([0, 0, 0, 0, 0] as [number, number, number, number, number]),
+      ])
+
+      const postRunFeel = [detail?.private_note, detail?.description ?? act.description]
+        .filter(Boolean).join(' | ')
+      const rpe = detail?.perceived_exertion ?? act.perceived_exertion ?? ''
 
       const planDay = planByDate.get(date)
       const logRow = {
@@ -165,9 +195,9 @@ export async function syncStravaActivities(daysBack = 14): Promise<SyncResult> {
         'Avg HR': act.average_heartrate ?? '',
         'Max HR': act.max_heartrate ?? '',
         'Elevation (ft)': elevFt ?? '',
-        'RPE': act.perceived_exertion ?? '',
+        'RPE': rpe,
         'Effort Feel': '',
-        'Post-Run Feel': act.description ?? '',
+        'Post-Run Feel': postRunFeel,
         'Strava ID': String(act.id),
         'Injury / Body Notes': '',
         'Notes': '',

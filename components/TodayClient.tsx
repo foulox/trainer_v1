@@ -234,7 +234,7 @@ export default function TodayClient({
               <input
                 type="number"
                 min={0}
-                max={100}
+                max={1000}
                 value={sleepInput}
                 autoFocus
                 className="text-lg font-bold text-gray-900 w-full text-center bg-transparent outline-none"
@@ -243,7 +243,7 @@ export default function TodayClient({
                 onBlur={async () => {
                   setEditingSleep(false)
                   const val = parseInt(sleepInput)
-                  if (!isNaN(val) && val >= 0 && val <= 100) {
+                  if (!isNaN(val) && val >= 0 && val <= 1000) {
                     setSleepScore(val)
                     await saveSleepScore(viewDate, val)
                   }

@@ -111,6 +111,7 @@ function mapHealth(row: Row): HealthEntry {
     restingHr:      num(row['Resting HR']),
     hrv:            num(row['HRV (ms)']),
     sleepScore:     num(row['Sleep Quality']),
+    respiratoryRate: num(row['Respiratory Rate']),
     steps:          num(row['Steps']),
     activeCalories: num(row['Active Calories']),
     vo2max:         num(row['VO2 Max']),

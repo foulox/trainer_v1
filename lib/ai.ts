@@ -25,7 +25,7 @@ export async function generateCoachingNote(
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 400,
+    max_tokens: 500,
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
@@ -33,11 +33,15 @@ export async function generateCoachingNote(
 
 ${context}
 
-Write two short paragraphs:
-1. **Readiness**: HRV trend, resting HR, recent load (volume, zone distribution, intensity over the last 7 days). Is the body ready for this workout?
-2. **Training context**: How does this workout fit the pattern of the last 7 days? Flag anything — too much intensity, inadequate recovery, missed workouts, RPE outliers.
+Format your response with two sections using these exact headers. Use bullet points, not tables. Be concise.
 
-Reference specific numbers. Be direct.`,
+## Readiness
+3–4 bullets covering: HRV (today vs 7-day avg), resting HR, sleep score, overall verdict (ready / cautious / back off).
+
+## Training Context
+3–4 bullets covering: recent load pattern (volume, zone distribution, intensity), how today's workout fits, any flags (too much intensity, inadequate recovery, missed workouts, RPE outliers).
+
+Reference specific numbers. No tables. No filler.`,
     }],
   })
 
@@ -73,7 +77,13 @@ export async function generateWeekReview(
 
 ${context}
 
-Cover: what went well, what didn't, what it means for next week. Be honest. Be specific.`,
+Use bullet points, not tables. Two sections:
+
+## What Happened
+Bullets: volume vs plan, key workouts, PT directives (yoga/strength/core compliance), cross-training.
+
+## Takeaways
+Bullets: what went well, what didn't, what it means for next week. Be direct and specific.`,
       }],
     }),
     client.messages.create({
@@ -86,8 +96,13 @@ Cover: what went well, what didn't, what it means for next week. Be honest. Be s
 
 ${context}
 
-Cover: training load, any body complaints or injury notes, how the body responded to the week.
-Clinical but readable. The PT needs to know what to watch.`,
+Use bullet points, not tables. Two sections:
+
+## Training Load
+Bullets: total volume, key sessions, cross-training, PT directive compliance (yoga/strength/core).
+
+## Body & Recovery
+Bullets: injury or body notes, HRV trend, sleep, how the body responded. Clinical but readable. The PT needs to know what to watch.`,
       }],
     }),
   ])
@@ -127,7 +142,7 @@ function buildWorkoutContext(
     `CURRENT PHASE: ${phase?.name ?? '—'} — ${phase?.goal ?? ''}`,
     nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — ${nextRace.grade}-race` : '',
     '',
-    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/100`,
+    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Respiratory Rate ${health?.respiratoryRate ?? '—'} br/min | Sleep Score ${health?.sleepScore ?? '—'}/1000`,
     '',
     'RECENT TRAINING (last 7 days):',
     ...recentLog.slice(0, 7).map(e => {
@@ -186,7 +201,7 @@ function buildWeekContext(
       ? `  Bike details: ${bikes.map(b => `${b.date} ${b.duration ?? '—'}min avg HR ${b.avgHr ?? '—'}`).join('; ')}`
       : '',
     '',
-    `BODY: Avg HRV ${avgHrv} ms | Avg Sleep Score ${avgSleep}/100`,
+    `BODY: Avg HRV ${avgHrv} ms | Avg Sleep Score ${avgSleep}/1000`,
     injuryNotes ? `INJURY/BODY NOTES:\n${injuryNotes}` : '',
   ]
   return lines.filter(Boolean).join('\n')
