@@ -1,12 +1,8 @@
 {
   "crons": [
-    {
-      "path": "/api/strava/sync",
-      "schedule": "0 12 * * 1-5"
-    },
-    {
-      "path": "/api/strava/sync",
-      "schedule": "0 15 * * 0,6"
-    }
+    { "path": "/api/strava/sync", "schedule": "0 12,21 * * 1-5" },
+    { "path": "/api/strava/sync", "schedule": "0 15,21 * * 0,6" },
+    { "path": "/api/cron/ai-coaching", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/week-review", "schedule": "0 4 * * 1" }
   ]
 }

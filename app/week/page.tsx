@@ -1,5 +1,6 @@
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
-import { getWeekReview } from '@/lib/kv'
+import { getWeekReview, setWeekReview } from '@/lib/kv'
+import { generateWeekReview } from '@/lib/ai'
 import WeekClient from '@/components/WeekClient'
 
 function getWeekBounds(date: string) {
@@ -31,7 +32,14 @@ export default async function WeekPage() {
   const weekStrava = strava.filter(a => a.date >= start && a.date <= end)
 
   const weekNum = weekPlan[0]?.week ?? 1
-  const weekReview = await getWeekReview(weekNum).catch(() => null)
+  let weekReview = await getWeekReview(weekNum).catch(() => null)
+  if (!weekReview && weekLog.length > 0) {
+    const phase =
+      phases.find(p => p.startDate <= start && p.endDate >= start) ??
+      phases.find(p => p.startDate <= end && p.endDate >= end)
+    weekReview = await generateWeekReview(weekNum, start, end, weekPlan, weekLog, weekHealth, phase).catch(() => null)
+    if (weekReview) await setWeekReview(weekReview).catch(() => {})
+  }
 
   const currentPhase = phases.find(p => p.startDate <= today && p.endDate >= today) ?? phases[0] ?? null
   const nextRace = races.filter(r => r.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
