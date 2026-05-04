@@ -6,6 +6,6 @@ export default async function PlanPage() {
     fetchPlanData(),
     fetchLibrary(),
   ])
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   return <PlanClient plan={plan} phases={phases} races={races} library={library} today={today} />
 }

@@ -4,7 +4,7 @@ import { generateCoachingNote } from '@/lib/ai'
 import TodayClient from '@/components/TodayClient'
 
 export default async function TodayPage() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
   const [{ plan, phases, races }, { health, strava }, log] = await Promise.all([
     fetchPlanData(),

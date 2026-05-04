@@ -35,7 +35,7 @@ MISSED TRAINING DAYS:
 - A bike commute on a planned run day is often an intentional substitution — evaluate it as such.
 
 RESPIRATORY RATE INTERPRETATION:
-- Normal resting range: 12–16 br/min. Lou's baseline is approximately 14 br/min.
+- Normal resting range: 12–16 br/min. Lou's baseline is 15.3 br/min.
 - 17–18: mildly elevated — monitor. May indicate early fatigue or mild respiratory stress.
 - 19+: meaningfully elevated — flag as a recovery concern. Common early signal for illness or overtraining before HRV drops.
 - Interpret alongside HRV and sleep: elevated RR + low HRV + poor sleep = strong do-not-push signal.

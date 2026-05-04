@@ -17,7 +17,7 @@ function getWeekBounds(date: string) {
 }
 
 export default async function WeekPage() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   const { start, end } = getWeekBounds(today)
 
   const [{ plan, phases, races }, { health, strava }, log] = await Promise.all([
