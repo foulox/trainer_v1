@@ -35,6 +35,8 @@ export type LibraryWorkout = {
   energySystem: string
   hrZone: string
   rpe: string
+  group: string       // workout family name for progressive variations (e.g. "Introduction Power Endurance")
+  variation: number | null  // 1-N progression within group; null = standalone workout
 }
 
 export type Race = {
@@ -106,6 +108,18 @@ export type CoachingNote = {
   generatedAt: string
   workoutPurpose: string
   coachingTake: string
+  type?: 'pre' | 'post'
+}
+
+export type CheckInMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type CheckIn = {
+  date: string
+  messages: CheckInMessage[]
+  coachingNote: string | null
 }
 
 export type WeekReview = {

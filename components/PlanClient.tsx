@@ -138,30 +138,43 @@ function DayEditor({
   const [showPicker, setShowPicker] = useState(false)
   const [filterType, setFilterType] = useState<string>('')
   const [filterSubType, setFilterSubType] = useState<string>('')
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+
+  const sportFiltered = useMemo(() => library.filter(w => {
+    if (dayType === 'Run' && w.sport !== 'Run') return false
+    if (dayType === 'Bike' && w.sport !== 'Bike') return false
+    return true
+  }), [library, dayType])
 
   const filteredLibrary = useMemo(() => {
-    return library.filter(w => {
-      if (dayType === 'Run' && w.sport !== 'Run') return false
-      if (dayType === 'Bike' && w.sport !== 'Bike') return false
+    return sportFiltered.filter(w => {
       if (filterType && w.category !== filterType) return false
       if (filterSubType && w.type !== filterSubType) return false
       return true
     })
-  }, [library, dayType, filterType, filterSubType])
+  }, [sportFiltered, filterType, filterSubType])
+
+  // Standalone workouts (no group) + one representative per group
+  const pickerRows = useMemo(() => {
+    const seen = new Set<string>()
+    return filteredLibrary.filter(w => {
+      if (!w.group) return true
+      if (seen.has(w.group)) return false
+      seen.add(w.group)
+      return true
+    })
+  }, [filteredLibrary])
 
   const libraryTypes = useMemo(() =>
-    Array.from(new Set(library.filter(w =>
-      dayType === 'Run' ? w.sport === 'Run' :
-      dayType === 'Bike' ? w.sport === 'Bike' : true
-    ).map(w => w.category).filter(Boolean))).sort()
-  , [library, dayType])
+    Array.from(new Set(sportFiltered.map(w => w.category).filter(Boolean))).sort()
+  , [sportFiltered])
 
   const librarySubTypes = useMemo(() => {
     if (!filterType) return []
-    return Array.from(new Set(library.filter(w =>
-      w.category === filterType && (dayType === 'Run' ? w.sport === 'Run' : dayType === 'Bike' ? w.sport === 'Bike' : true)
+    return Array.from(new Set(sportFiltered.filter(w =>
+      w.category === filterType
     ).map(w => w.type).filter(Boolean))).sort()
-  }, [library, dayType, filterType])
+  }, [sportFiltered, filterType])
 
   const displayWorkout = selectedWorkout ?? (entry.workout ? {
     name: entry.workout,
@@ -277,15 +290,50 @@ function DayEditor({
                   )}
                   {/* Workout list */}
                   <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
-                    {filteredLibrary.length === 0 ? (
+                    {pickerRows.length === 0 ? (
                       <div className="text-xs text-gray-400 p-4 text-center">No workouts found</div>
-                    ) : filteredLibrary.map((w, i) => (
-                      <button key={`${w.name}-${i}`} onClick={() => { setSelectedWorkout(w); setShowPicker(false); if (!runType && w.type) setRunType(w.type) }}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 active:bg-blue-100 transition-colors">
-                        <div className="text-sm font-semibold text-gray-800">{w.name}</div>
-                        {w.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{w.reason}</div>}
-                      </button>
-                    ))}
+                    ) : pickerRows.map((w, i) => {
+                      if (!w.group) {
+                        return (
+                          <button key={`${w.name}-${i}`} onClick={() => { setSelectedWorkout(w); setShowPicker(false); if (!runType && w.type) setRunType(w.type) }}
+                            className="w-full text-left px-4 py-3 hover:bg-blue-50 active:bg-blue-100 transition-colors">
+                            <div className="text-sm font-semibold text-gray-800">{w.name}</div>
+                            {w.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{w.reason}</div>}
+                          </button>
+                        )
+                      }
+                      // Grouped workout — show family header + expandable variations
+                      const variations = filteredLibrary
+                        .filter(v => v.group === w.group)
+                        .sort((a, b) => (a.variation ?? 0) - (b.variation ?? 0))
+                      const isExpanded = expandedGroup === w.group
+                      return (
+                        <div key={`group-${w.group}-${i}`}>
+                          <button
+                            onClick={() => setExpandedGroup(isExpanded ? null : w.group)}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                          >
+                            <div>
+                              <div className="text-sm font-semibold text-gray-800">{w.group}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{variations.length} variations</div>
+                            </div>
+                            <span className="text-xs text-gray-400 shrink-0">{isExpanded ? '▴' : '▾'}</span>
+                          </button>
+                          {isExpanded && variations.map((v, j) => (
+                            <button
+                              key={`${v.name}-${j}`}
+                              onClick={() => { setSelectedWorkout(v); setShowPicker(false); setExpandedGroup(null); if (!runType && v.type) setRunType(v.type) }}
+                              className="w-full text-left px-6 py-2.5 bg-gray-50 hover:bg-blue-50 active:bg-blue-100 transition-colors border-t border-gray-100"
+                            >
+                              <div className="text-sm font-semibold text-gray-700">
+                                V{v.variation ?? j + 1} — {v.name}
+                              </div>
+                              {v.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{v.reason}</div>}
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

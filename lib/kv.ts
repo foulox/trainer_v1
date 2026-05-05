@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv'
-import type { CoachingNote, WeekReview } from './data'
+import type { CoachingNote, WeekReview, CheckIn } from './data'
 
 export async function getCoachingNote(date: string): Promise<CoachingNote | null> {
   return kv.get<CoachingNote>(`coaching:${date}`)
@@ -7,6 +7,22 @@ export async function getCoachingNote(date: string): Promise<CoachingNote | null
 
 export async function setCoachingNote(note: CoachingNote): Promise<void> {
   await kv.set(`coaching:${note.date}`, note, { ex: 60 * 60 * 24 * 7 })
+}
+
+export async function getPostCoachingNote(date: string): Promise<CoachingNote | null> {
+  return kv.get<CoachingNote>(`coaching:post:${date}`)
+}
+
+export async function setPostCoachingNote(note: CoachingNote): Promise<void> {
+  await kv.set(`coaching:post:${note.date}`, note, { ex: 60 * 60 * 24 * 7 })
+}
+
+export async function getCheckIn(date: string): Promise<CheckIn | null> {
+  return kv.get<CheckIn>(`checkin:${date}`)
+}
+
+export async function setCheckIn(checkIn: CheckIn): Promise<void> {
+  await kv.set(`checkin:${checkIn.date}`, checkIn, { ex: 60 * 60 * 24 * 14 })
 }
 
 export async function getWeekReview(weekNumber: number): Promise<WeekReview | null> {

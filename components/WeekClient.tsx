@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Copy, Check, Brain, RefreshCw } from 'lucide-react'
+import { Copy, Check, Brain, RefreshCw, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, Race, StravaActivity } from '@/lib/data'
-import { regenerateWeekReview } from '@/app/actions'
+import { regenerateWeekReview, generatePTSummaryAction } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
+import DayDrawer from './DayDrawer'
 
 const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
-const ZONE_LABELS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']
 
 function fmt(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -47,45 +47,6 @@ function ZoneBar({ logs }: { logs: TrainingLogEntry[] }) {
   )
 }
 
-function DaySummary({ logs }: { logs: TrainingLogEntry[] }) {
-  const totals = [
-    logs.reduce((s, l) => s + (l.zone1 ?? 0), 0),
-    logs.reduce((s, l) => s + (l.zone2 ?? 0), 0),
-    logs.reduce((s, l) => s + (l.zone3 ?? 0), 0),
-    logs.reduce((s, l) => s + (l.zone4 ?? 0), 0),
-    logs.reduce((s, l) => s + (l.zone5 ?? 0), 0),
-  ]
-  const totalMin = totals.reduce((s, v) => s + v, 0)
-  const totalDist = logs.reduce((s, l) => s + (l.distance ?? 0), 0)
-  const avgHr = logs.filter(l => l.avgHr).length
-    ? Math.round(logs.reduce((s, l) => s + (l.avgHr ?? 0), 0) / logs.filter(l => l.avgHr).length)
-    : null
-
-  return (
-    <div className="mt-3 pl-11 border-t border-gray-100 pt-3">
-      <div className="flex gap-4 text-xs text-gray-500 mb-2">
-        {totalDist > 0 && <span className="font-semibold text-gray-700">{totalDist.toFixed(1)} mi total</span>}
-        {totalMin > 0 && <span>{totalMin} min</span>}
-        {avgHr && <span>{avgHr} bpm avg</span>}
-      </div>
-      {totalMin > 0 && (
-        <div className="flex flex-col gap-1">
-          {totals.map((t, i) => t > 0 ? (
-            <div key={i} className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full shrink-0 ${ZONE_COLORS[i]}`} />
-              <div className="text-xs text-gray-500 w-5">{ZONE_LABELS[i]}</div>
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full ${ZONE_COLORS[i]}`} style={{ width: `${(t / totalMin) * 100}%` }} />
-              </div>
-              <div className="text-xs text-gray-400 w-10 text-right">{t} min</div>
-            </div>
-          ) : null)}
-        </div>
-      )}
-    </div>
-  )
-}
-
 type Props = {
   today: string
   weekStart: string
@@ -107,8 +68,20 @@ export default function WeekClient({
   const [review, setReview] = useState(weekReview)
   const [copied, setCopied] = useState(false)
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
-  const [expandedDay, setExpandedDay] = useState<string | null>(null)
+  const [drawerDate, setDrawerDate] = useState<string | null>(null)
   const [regenerating, startRegenerate] = useTransition()
+
+  // PT summary state
+  const [ptExpanded, setPtExpanded] = useState(false)
+  const [ptStart, setPtStart] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 28)
+    return d.toISOString().slice(0, 10)
+  })
+  const [ptEnd, setPtEnd] = useState(today)
+  const [ptResult, setPtResult] = useState<string | null>(null)
+  const [ptLoading, setPtLoading] = useState(false)
+  const [ptCopied, setPtCopied] = useState(false)
 
   const plannedMiles = weekPlan.reduce((s, e) => s + (e.distance ?? 0), 0)
   const actualMiles = weekLog.reduce((s, e) => s + (e.distance ?? 0), 0)
@@ -128,6 +101,25 @@ export default function WeekClient({
       if (fresh) setReview(fresh)
     })
   }
+
+  async function handleGeneratePT() {
+    setPtLoading(true)
+    const result = await generatePTSummaryAction(ptStart, ptEnd)
+    setPtResult(result)
+    setPtLoading(false)
+  }
+
+  function handleCopyPT() {
+    if (!ptResult) return
+    navigator.clipboard.writeText(ptResult).then(() => {
+      setPtCopied(true)
+      setTimeout(() => setPtCopied(false), 2000)
+    })
+  }
+
+  const drawerEntry = drawerDate ? weekPlan.find(e => e.date === drawerDate) ?? null : null
+  const drawerLogs = drawerDate ? weekLog.filter(l => l.date === drawerDate) : []
+  const drawerHealth = drawerDate ? weekHealth.find(h => h.date === drawerDate) ?? null : null
 
   return (
     <div className="px-4 pt-10 pb-4">
@@ -159,17 +151,15 @@ export default function WeekClient({
           const isToday = entry.date === today
           const isPast = entry.date < today
           const totalActualMi = dayLogs.reduce((s, l) => s + (l.distance ?? 0), 0)
-          const isExpanded = expandedDay === entry.date
 
           return (
             <div
               key={entry.date}
               className={`bg-white rounded-2xl border shadow-sm p-3 ${isToday ? 'border-blue-200' : 'border-gray-100'}`}
             >
-              {/* Tappable day header */}
               <button
                 className="w-full text-left"
-                onClick={() => setExpandedDay(isExpanded ? null : entry.date)}
+                onClick={() => setDrawerDate(entry.date)}
               >
                 <div className="flex items-center gap-3">
                   <div className="text-center w-8 shrink-0">
@@ -196,10 +186,10 @@ export default function WeekClient({
                     <div className="text-xs text-amber-500 font-medium shrink-0">Not logged</div>
                   ) : null}
                 </div>
-                {dayLogs.length > 0 && !isExpanded && <ZoneBar logs={dayLogs} />}
+                {dayLogs.length > 0 && <ZoneBar logs={dayLogs} />}
               </button>
 
-              {/* Individual activity rows — stopPropagation so they don't toggle expand */}
+              {/* Individual activity rows */}
               {dayLogs.length > 0 && (
                 <div className="mt-2 pl-11 flex flex-col gap-1">
                   {dayLogs.map((log, i) => {
@@ -223,14 +213,12 @@ export default function WeekClient({
                   })}
                 </div>
               )}
-
-              {/* Expanded day summary */}
-              {isExpanded && dayLogs.length > 0 && <DaySummary logs={dayLogs} />}
             </div>
           )
         })}
       </div>
 
+      {/* Week in Review */}
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-2">
           <Brain size={14} className="text-blue-500" />
@@ -256,37 +244,83 @@ export default function WeekClient({
         )}
       </div>
 
-      {review?.ptSummary && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="text-xs font-bold text-gray-500 tracking-wide">PT SUMMARY</div>
+      {/* PT Summary — on-demand with date range */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <button
+          className="w-full flex items-center gap-2"
+          onClick={() => setPtExpanded(v => !v)}
+        >
+          <FileText size={14} className="text-gray-400" />
+          <div className="text-xs font-bold text-gray-500 tracking-wide">PT SUMMARY</div>
+          {ptExpanded ? <ChevronUp size={14} className="ml-auto text-gray-400" /> : <ChevronDown size={14} className="ml-auto text-gray-400" />}
+        </button>
+
+        {ptExpanded && (
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="flex gap-2 items-center">
+              <div className="flex-1">
+                <div className="text-xs text-gray-400 mb-1">From</div>
+                <input
+                  type="date"
+                  value={ptStart}
+                  onChange={e => setPtStart(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+                />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs text-gray-400 mb-1">To</div>
+                <input
+                  type="date"
+                  value={ptEnd}
+                  onChange={e => setPtEnd(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
+
             <button
-              onClick={handleRegenerate}
-              disabled={regenerating}
-              className="ml-auto text-gray-400 hover:text-gray-600 disabled:opacity-40"
+              onClick={handleGeneratePT}
+              disabled={ptLoading}
+              className="w-full bg-gray-800 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
             >
-              <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
+              {ptLoading ? 'Generating...' : 'Generate PT Summary'}
             </button>
+
+            {ptResult && (
+              <>
+                <div className="prose prose-sm prose-gray max-w-none border-t border-gray-100 pt-3">
+                  <ReactMarkdown>{ptResult}</ReactMarkdown>
+                </div>
+                <button
+                  onClick={handleCopyPT}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors ${
+                    ptCopied ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white'
+                  }`}
+                >
+                  {ptCopied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy for PT</>}
+                </button>
+              </>
+            )}
           </div>
-          <div className="prose prose-sm prose-gray max-w-none mb-3">
-            <ReactMarkdown>{review.ptSummary}</ReactMarkdown>
-          </div>
-          <button
-            onClick={handleCopy}
-            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm touch-manipulation transition-colors ${
-              copied ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white'
-            }`}
-          >
-            {copied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy for PT</>}
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {selected && (
         <ActivityDrawer
           log={selected}
           stravaActivities={stravaActivities}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {drawerDate && (
+        <DayDrawer
+          date={drawerDate}
+          plan={drawerEntry}
+          logs={drawerLogs}
+          health={drawerHealth}
+          stravaActivities={stravaActivities}
+          onClose={() => setDrawerDate(null)}
         />
       )}
     </div>

@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
-import { generateCoachingNote, generateWeekReview } from '@/lib/ai'
-import { getCoachingNote, setCoachingNote, getWeekReview, setWeekReview } from '@/lib/kv'
-import type { CoachingNote, WeekReview } from '@/lib/data'
+import { generateCoachingNote, generatePostWorkoutNote, generatePTSummaryForRange, generateWeekReview, sendCheckInMessage } from '@/lib/ai'
+import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview } from '@/lib/kv'
+import type { CoachingNote, WeekReview, CheckInMessage } from '@/lib/data'
 
 export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNote | null> {
   try {
@@ -24,8 +24,9 @@ export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNo
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
     const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const checkIn = await getCheckIn(date).catch(() => null)
 
-    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
+    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
     await setCoachingNote(note)
     return note
   } catch {
@@ -49,10 +50,94 @@ export async function regenerateCoachingNote(date: string): Promise<CoachingNote
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
     const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const checkIn = await getCheckIn(date).catch(() => null)
 
-    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
+    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
     await setCoachingNote(note)
     return note
+  } catch {
+    return null
+  }
+}
+
+export async function fetchPostWorkoutNoteForDate(date: string): Promise<CoachingNote | null> {
+  try {
+    const cached = await getPostCoachingNote(date).catch(() => null)
+    if (cached) return cached
+
+    const [{ plan, phases, races }, { health }, log] = await Promise.all([
+      fetchPlanData({ fresh: true }),
+      fetchTrainingData({ fresh: true }),
+      fetchTrainingLog({ fresh: true }),
+    ])
+
+    const workout = plan.find(e => e.date === date)
+    if (!workout) return null
+
+    const todayLogs = log.filter(e => e.date === date)
+    if (todayLogs.length === 0) return null
+
+    // Only generate for runs or qualifying bike rides
+    const hasRun = todayLogs.some(e => /run/i.test(e.activityType))
+    const checkIn = await getCheckIn(date).catch(() => null)
+    const runReplacementFlagged = checkIn?.coachingNote?.toLowerCase().includes('replacement') ||
+      checkIn?.coachingNote?.toLowerCase().includes('bike') ||
+      checkIn?.coachingNote?.toLowerCase().includes('substitute')
+    const hasBike = todayLogs.some(e => /ride|bike|cycling/i.test(e.activityType))
+    const bikeQualifies = hasBike && (runReplacementFlagged ||
+      todayLogs.some(e => /ride|bike|cycling/i.test(e.activityType) && (e.duration ?? 0) >= 45))
+
+    if (!hasRun && !bikeQualifies) return null
+
+    const phase = phases.find(p => p.startDate <= date && p.endDate >= date)
+    const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
+    const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const dayHealth = health.find(e => e.date === date)
+    const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+
+    const note = await generatePostWorkoutNote(workout, phase, nextRace, todayLogs, dayHealth, recentLog, recentHealth, checkIn)
+    await setPostCoachingNote(note)
+    return note
+  } catch {
+    return null
+  }
+}
+
+export async function generatePTSummaryAction(startDate: string, endDate: string): Promise<string | null> {
+  try {
+    const [{ plan, phases }, { health }, log] = await Promise.all([
+      fetchPlanData({ fresh: true }),
+      fetchTrainingData({ fresh: true }),
+      fetchTrainingLog({ fresh: true }),
+    ])
+    void plan
+    return await generatePTSummaryForRange(startDate, endDate, log, health, phases)
+  } catch {
+    return null
+  }
+}
+
+export async function sendCheckInAction(
+  date: string,
+  messages: CheckInMessage[],
+  workoutContext: string,
+): Promise<{ reply: string; coachingNote: string | null } | null> {
+  try {
+    const result = await sendCheckInMessage(messages, workoutContext)
+
+    // Save check-in to KV if there's a coaching note worth keeping
+    const existing = await getCheckIn(date).catch(() => null)
+    const allMessages: CheckInMessage[] = [...(existing?.messages ?? []), ...messages.slice(existing?.messages?.length ?? 0)]
+    const assistantMessage: CheckInMessage = { role: 'assistant', content: result.reply }
+    const coachingNote = result.coachingNote ?? existing?.coachingNote ?? null
+
+    await setCheckIn({
+      date,
+      messages: [...allMessages, assistantMessage],
+      coachingNote,
+    })
+
+    return result
   } catch {
     return null
   }
@@ -261,6 +346,12 @@ export async function syncStrava(): Promise<{ added: number; skipped: number; er
   const result = await syncStravaActivities()
   revalidatePath('/')
   revalidatePath('/week')
+
+  if (result.added > 0) {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    fetchPostWorkoutNoteForDate(today).catch(() => {})
+  }
+
   return result
 }
 

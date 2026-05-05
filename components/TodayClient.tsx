@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity } from '@/lib/data'
-import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
-import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore } from '@/app/actions'
+import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn } from '@/lib/data'
+import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
+import CheckInDrawer from './CheckInDrawer'
 import ReactMarkdown from 'react-markdown'
 
 const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
@@ -81,17 +82,23 @@ type Props = {
   log: TrainingLogEntry[]
   strava: StravaActivity[]
   initialCoachingNote: CoachingNote | null
+  initialPostNote: CoachingNote | null
+  initialCheckIn: CheckIn | null
 }
 
 export default function TodayClient({
-  today, plan, phases, races, health, log, strava, initialCoachingNote,
+  today, plan, phases, races, health, log, strava,
+  initialCoachingNote, initialPostNote, initialCheckIn,
 }: Props) {
   const [viewDate, setViewDate] = useState(today)
   const [note, setNote] = useState(initialCoachingNote)
+  const [postNote, setPostNote] = useState(initialPostNote)
   const [noteLoading, setNoteLoading] = useState(false)
+  const [postNoteLoading, setPostNoteLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
+  const [showCheckIn, setShowCheckIn] = useState(false)
   const [regenerating, startRegenerate] = useTransition()
   const [reasonExpanded, setReasonExpanded] = useState(false)
   const [editingSleep, setEditingSleep] = useState(false)
@@ -115,7 +122,6 @@ export default function TodayClient({
   const viewPhase = phases.find(p => p.startDate <= viewDate && p.endDate >= viewDate) ?? phases[0] ?? null
   const viewRace = races.filter(r => r.date >= viewDate).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
 
-  // For non-today dates, show next upcoming workout if nothing planned
   const nextWorkout = plan.find(e => e.date >= viewDate && e.dayType !== 'Rest') ?? null
   const displayEntry = viewEntry ?? (viewDate === today ? nextWorkout : null)
   const isRestDay = viewEntry?.dayType === 'Rest'
@@ -123,6 +129,9 @@ export default function TodayClient({
   const planDates = plan.map(e => e.date).sort()
   const minDate = planDates[0] ?? today
   const maxDate = planDates[planDates.length - 1] ?? today
+
+  const isViewingToday = viewDate === today
+  const hasActivities = viewLogs.length > 0
 
   async function navigateDate(newDate: string) {
     if (newDate < minDate || newDate > maxDate) return
@@ -132,9 +141,11 @@ export default function TodayClient({
     setSleepScore(health.find(e => e.date === newDate)?.sleepScore ?? null)
     if (newDate === today) {
       setNote(initialCoachingNote)
+      setPostNote(initialPostNote)
       return
     }
     setNote(null)
+    setPostNote(null)
     setNoteLoading(true)
     const fetched = await fetchCoachingNoteForDate(newDate)
     setNote(fetched)
@@ -148,6 +159,13 @@ export default function TodayClient({
     })
   }
 
+  async function handleGeneratePostNote() {
+    setPostNoteLoading(true)
+    const fresh = await fetchPostWorkoutNoteForDate(viewDate)
+    setPostNote(fresh)
+    setPostNoteLoading(false)
+  }
+
   async function handleSync() {
     setSyncing(true)
     setSyncMsg(null)
@@ -157,14 +175,17 @@ export default function TodayClient({
         ? `Synced ${result.added} activit${result.added === 1 ? 'y' : 'ies'}`
         : 'Already up to date'
       )
+      // Refresh post note if activities were added for today
+      if (result.added > 0 && isViewingToday) {
+        const fresh = await fetchPostWorkoutNoteForDate(today)
+        setPostNote(fresh)
+      }
     } catch {
       setSyncMsg('Sync failed — check credentials')
     } finally {
       setSyncing(false)
     }
   }
-
-  const isViewingToday = viewDate === today
 
   return (
     <div className="px-4 pt-10 pb-4">
@@ -181,12 +202,7 @@ export default function TodayClient({
           </button>
           <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold text-gray-900">{formatDateHeader(viewDate, today)}</h1>
-            {!isViewingToday && (
-              <p className="text-sm text-gray-400 mt-0.5">{formatDateSub(viewDate)}</p>
-            )}
-            {isViewingToday && (
-              <p className="text-sm text-gray-400 mt-0.5">{formatDateSub(today)}</p>
-            )}
+            <p className="text-sm text-gray-400 mt-0.5">{formatDateSub(viewDate)}</p>
           </div>
           <button
             onClick={() => navigateDate(addDays(viewDate, 1))}
@@ -217,7 +233,7 @@ export default function TodayClient({
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
             <div className={`text-lg font-bold ${hrvColor(viewHealth.hrv)}`}>
-              {viewHealth.hrv ?? '—'}
+              {viewHealth.hrv != null ? Math.round(viewHealth.hrv) : '—'}
             </div>
             <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
               <Zap size={10} /> HRV ms
@@ -334,10 +350,13 @@ export default function TodayClient({
         </div>
       )}
 
+      {/* Pre-workout coaching card */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-2">
           <Brain size={14} className="text-slate-500" />
-          <div className="text-xs font-bold text-slate-600 tracking-wide">ASSISTANT COACH</div>
+          <div className="text-xs font-bold text-slate-600 tracking-wide">
+            {hasActivities ? 'PRE-WORKOUT' : 'ASSISTANT COACH'}
+          </div>
           {displayEntry && displayEntry.dayType !== 'Rest' && displayEntry.date === viewDate && (
             <button
               onClick={handleRegenerate}
@@ -362,6 +381,32 @@ export default function TodayClient({
           </p>
         )}
       </div>
+
+      {/* Post-workout coaching card — shown when activities are logged */}
+      {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Brain size={14} className="text-emerald-600" />
+            <div className="text-xs font-bold text-emerald-700 tracking-wide">POST-WORKOUT</div>
+            <button
+              onClick={handleGeneratePostNote}
+              disabled={postNoteLoading}
+              className="ml-auto text-emerald-500 hover:text-emerald-700 disabled:opacity-40"
+            >
+              <RefreshCw size={13} className={postNoteLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          {postNoteLoading ? (
+            <p className="text-sm text-gray-400 italic">Generating...</p>
+          ) : postNote ? (
+            <div className="prose prose-sm prose-emerald max-w-none">
+              <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 italic">Tap ↻ to generate post-workout analysis.</p>
+          )}
+        </div>
+      )}
 
       {viewLogs.length > 0 && (
         <div className="mb-4">
@@ -394,16 +439,28 @@ export default function TodayClient({
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3">
-        {syncMsg && <span className="text-xs text-gray-400">{syncMsg}</span>}
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
-        >
-          <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Syncing…' : 'Sync Strava'}
-        </button>
+      <div className="flex items-center justify-between gap-3">
+        {/* Check-in button — today only */}
+        {isViewingToday && (
+          <button
+            onClick={() => setShowCheckIn(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <MessageCircle size={13} />
+            Check In
+          </button>
+        )}
+        <div className="flex items-center gap-3 ml-auto">
+          {syncMsg && <span className="text-xs text-gray-400">{syncMsg}</span>}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync Strava'}
+          </button>
+        </div>
       </div>
 
       {selected && (
@@ -411,6 +468,18 @@ export default function TodayClient({
           log={selected}
           stravaActivities={strava}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {showCheckIn && (
+        <CheckInDrawer
+          date={viewDate}
+          workout={displayEntry}
+          health={viewHealth}
+          phase={viewPhase}
+          race={viewRace}
+          initialCheckIn={initialCheckIn}
+          onClose={() => setShowCheckIn(false)}
         />
       )}
     </div>

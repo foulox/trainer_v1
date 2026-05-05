@@ -69,6 +69,8 @@ function mapLibraryWorkout(row: Row): LibraryWorkout {
     energySystem: str(row['Energy System']),
     hrZone:       str(row['HR Zone']),
     rpe:          str(row['RPE']),
+    group:        str(row['Group']),
+    variation:    num(row['Variation']),
   }
 }
 

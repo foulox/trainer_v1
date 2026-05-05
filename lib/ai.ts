@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { PlannedWorkout, Phase, Race, TrainingLogEntry, HealthEntry, CoachingNote, WeekReview } from './data'
+import type { PlannedWorkout, Phase, Race, TrainingLogEntry, HealthEntry, CoachingNote, WeekReview, CheckInMessage, CheckIn } from './data'
 import { ATHLETE_CONTEXT } from './athlete-context'
 
 const client = new Anthropic()
@@ -20,26 +20,27 @@ export async function generateCoachingNote(
   recentLog: TrainingLogEntry[],
   todayHealth: HealthEntry | undefined,
   recentHealth?: HealthEntry[],
+  checkIn?: CheckIn | null,
 ): Promise<CoachingNote> {
-  const context = buildWorkoutContext(workout, phase, nextRace, recentLog, todayHealth, recentHealth)
+  const context = buildWorkoutContext(workout, phase, nextRace, recentLog, todayHealth, recentHealth, checkIn)
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 500,
+    max_tokens: 600,
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: `Analyze this athlete's readiness and training context for today's workout.
+      content: `Analyze this athlete's readiness and training context for today's pre-workout briefing.
 
 ${context}
 
-Format your response with two sections using these exact headers. Use bullet points, not tables. Be concise.
+Format your response with two sections. Use bullet points, not tables. Be concise.
 
 ## Readiness
-3–4 bullets covering: HRV (today vs 7-day avg), resting HR, sleep score, overall verdict (ready / cautious / back off).
+3–4 bullets: HRV (today vs 7-day avg), resting HR, sleep score, overall verdict (ready / cautious / back off).
 
-## Training Context
-3–4 bullets covering: recent load pattern (volume, zone distribution, intensity), how today's workout fits, any flags (too much intensity, inadequate recovery, missed workouts, RPE outliers).
+## Today's Workout in Context
+3–4 bullets: What this workout is building, why it matters NOW in this phase, how it connects to the race goal. Include recent load pattern and any flags. Reference the phase name and week within phase. Be specific about the physiological purpose.
 
 Reference specific numbers. No tables. No filler.`,
     }],
@@ -52,7 +53,175 @@ Reference specific numbers. No tables. No filler.`,
     generatedAt: new Date().toISOString(),
     workoutPurpose: workout.reason ?? '',
     coachingTake: text,
+    type: 'pre',
   }
+}
+
+export async function generatePostWorkoutNote(
+  workout: PlannedWorkout,
+  phase: Phase | undefined,
+  nextRace: Race | undefined,
+  todayLogs: TrainingLogEntry[],
+  todayHealth: HealthEntry | undefined,
+  recentLog: TrainingLogEntry[],
+  recentHealth?: HealthEntry[],
+  checkIn?: CheckIn | null,
+): Promise<CoachingNote> {
+  const context = buildPostWorkoutContext(workout, phase, nextRace, todayLogs, todayHealth, recentLog, recentHealth, checkIn)
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    system: SYSTEM_PROMPT,
+    messages: [{
+      role: 'user',
+      content: `Write a post-workout assessment for this athlete's completed training day.
+
+${context}
+
+Format with two sections. Use bullet points, not tables.
+
+## What Happened
+2–3 bullets: Compare planned vs actual (type, distance, duration, zones). If the athlete substituted (easy run for quality, bike for run, skipped) — assess whether it was a smart call. Reference actual numbers.
+
+## Recovery Outlook
+2–3 bullets: Based on today's effort (HR zones, duration, RPE), characterize training load (easy/moderate/hard). What recovery does tomorrow need? Flag anything — cumulative load, upcoming quality day, injury signals. Be direct.
+
+Reference specific numbers. No filler.`,
+    }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text : ''
+  const date = todayLogs[0]?.date ?? workout.date
+
+  return {
+    date,
+    generatedAt: new Date().toISOString(),
+    workoutPurpose: workout.reason ?? '',
+    coachingTake: text,
+    type: 'post',
+  }
+}
+
+export async function generatePTSummaryForRange(
+  startDate: string,
+  endDate: string,
+  log: TrainingLogEntry[],
+  health: HealthEntry[],
+  phases: Phase[],
+): Promise<string> {
+  const rangeLog = log.filter(e => e.date >= startDate && e.date <= endDate)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const rangeHealth = health.filter(e => e.date >= startDate && e.date <= endDate)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const runs = rangeLog.filter(e => /run/i.test(e.activityType))
+  const bikes = rangeLog.filter(e => /ride|bike|cycling/i.test(e.activityType))
+  const yoga = rangeLog.filter(e => /yoga/i.test(e.activityType))
+  const gym = rangeLog.filter(e => /weight|strength|gym|lift/i.test(e.activityType))
+  const totalRunMi = runs.reduce((s, e) => s + (e.distance ?? 0), 0)
+  const injuryNotes = rangeLog.filter(e => e.injuryNotes).map(e => `  ${e.date}: ${e.injuryNotes}`)
+  const phase = phases.find(p => p.startDate <= endDate && p.endDate >= startDate)
+  const avgHrv = rangeHealth.filter(h => h.hrv).length
+    ? (rangeHealth.filter(h => h.hrv).reduce((s, h) => s + (h.hrv ?? 0), 0) /
+       rangeHealth.filter(h => h.hrv).length).toFixed(1)
+    : '—'
+  const avgSleep = rangeHealth.filter(h => h.sleepScore).length
+    ? (rangeHealth.filter(h => h.sleepScore).reduce((s, h) => s + (h.sleepScore ?? 0), 0) /
+       rangeHealth.filter(h => h.sleepScore).length).toFixed(0)
+    : '—'
+
+  const context = [
+    `DATE RANGE: ${startDate} to ${endDate}`,
+    phase ? `TRAINING PHASE: ${phase.name} — ${phase.goal}` : '',
+    '',
+    `RUNNING VOLUME: ${totalRunMi.toFixed(1)} mi over ${runs.length} runs`,
+    `CROSS-TRAINING: ${bikes.length} bike rides, ${yoga.length} yoga sessions, ${gym.length} gym/strength sessions`,
+    '',
+    'TRAINING LOG:',
+    ...rangeLog.map(e => {
+      const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
+        .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
+      return `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi | ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'} | Notes: ${e.postRunFeel ?? '—'}`
+    }),
+    '',
+    `HEALTH METRICS: Avg HRV ${avgHrv} ms | Avg Sleep Score ${avgSleep}/1000`,
+    injuryNotes.length ? `\nINJURY / BODY NOTES:\n${injuryNotes.join('\n')}` : '',
+  ].filter(Boolean).join('\n')
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    system: SYSTEM_PROMPT,
+    messages: [{
+      role: 'user',
+      content: `Write a training summary for this athlete's physical therapist covering ${startDate} to ${endDate}.
+
+${context}
+
+Use bullet points. Two sections:
+
+## Training Load
+Bullets: total mileage, key sessions, cross-training, PT directive compliance (yoga/strength/core frequency).
+
+## Body & Recovery
+Bullets: any injury or body notes, HRV trend, sleep quality, how the body responded to load. Clinical but readable — the PT needs to know what to watch and what questions to ask.`,
+    }],
+  })
+
+  return message.content[0].type === 'text' ? message.content[0].text : ''
+}
+
+export async function sendCheckInMessage(
+  messages: CheckInMessage[],
+  workoutContext: string,
+): Promise<{ reply: string; coachingNote: string | null }> {
+  const systemPrompt = `You are an assistant coach for a competitive masters runner checking in before their workout.
+
+RULES:
+- Answer questions directly and briefly (2–4 sentences max per response).
+- Do NOT ask follow-up questions unless the answer is genuinely ambiguous.
+- Do NOT initiate new topics or try to extend the conversation.
+- Be practical and data-grounded. Reference today's health data when relevant.
+- If the runner mentions something affecting training interpretation (planned substitution,
+  injury, bad sleep reason, unusual stress) — note it internally for coaching context.
+
+After your reply, output a JSON block on its own line:
+{"coachingNote": "one sentence for coaching context or null"}
+
+TODAY'S CONTEXT:
+${workoutContext}`
+
+  const apiMessages = messages.map(m => ({
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+  }))
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 400,
+    system: systemPrompt,
+    messages: apiMessages,
+  })
+
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+
+  // Split reply from coaching note JSON
+  const jsonMatch = raw.match(/\{"coachingNote":\s*(.+?)\}/)
+  let coachingNote: string | null = null
+  let reply = raw
+
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]) as { coachingNote: string | null }
+      coachingNote = parsed.coachingNote === 'null' ? null : (parsed.coachingNote || null)
+      reply = raw.slice(0, raw.lastIndexOf(jsonMatch[0])).trim()
+    } catch {
+      // If parsing fails, use the full raw response as reply
+    }
+  }
+
+  return { reply, coachingNote }
 }
 
 export async function generateWeekReview(
@@ -120,6 +289,11 @@ Bullets: injury or body notes, HRV trend, sleep, how the body responded. Clinica
   }
 }
 
+function weekInPhase(date: string, phase: Phase): number {
+  const dayMs = new Date(date + 'T00:00:00').getTime() - new Date(phase.startDate + 'T00:00:00').getTime()
+  return Math.max(1, Math.ceil(dayMs / (7 * 24 * 60 * 60 * 1000)) + 1)
+}
+
 function buildWorkoutContext(
   workout: PlannedWorkout,
   phase: Phase | undefined,
@@ -127,11 +301,14 @@ function buildWorkoutContext(
   recentLog: TrainingLogEntry[],
   health: HealthEntry | undefined,
   recentHealth?: HealthEntry[],
+  checkIn?: CheckIn | null,
 ): string {
   const hrvValues = (recentHealth ?? []).filter(h => h.hrv).map(h => h.hrv!)
   const hrvAvg7 = hrvValues.length
     ? (hrvValues.reduce((s, v) => s + v, 0) / hrvValues.length).toFixed(1)
     : null
+
+  const wip = phase ? weekInPhase(workout.date, phase) : null
 
   const lines = [
     `TODAY'S WORKOUT: ${workout.dayType} — ${workout.runType ?? ''} — ${workout.workout ?? 'Unplanned'}`,
@@ -139,16 +316,65 @@ function buildWorkoutContext(
     `Purpose (from plan): ${workout.reason ?? 'None specified'}`,
     `Instructions: ${workout.instructions ?? 'None'}`,
     '',
-    `CURRENT PHASE: ${phase?.name ?? '—'} — ${phase?.goal ?? ''}`,
-    nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — ${nextRace.grade}-race` : '',
+    phase ? `CURRENT PHASE: ${phase.name} (Week ${wip} of ${phase.weeks}) — ${phase.goal}` : 'CURRENT PHASE: —',
+    phase ? `Phase dates: ${phase.startDate} to ${phase.endDate}` : '',
+    nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — Grade ${nextRace.grade}` : '',
+    nextRace?.notes ? `Race notes: ${nextRace.notes}` : '',
     '',
-    `TODAY'S HEALTH: HRV ${health?.hrv ?? '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Respiratory Rate ${health?.respiratoryRate ?? '—'} br/min | Sleep Score ${health?.sleepScore ?? '—'}/1000`,
+    `TODAY'S HEALTH: HRV ${health?.hrv != null ? Math.round(health.hrv) : '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Respiratory Rate ${health?.respiratoryRate ?? '—'} br/min | Sleep Score ${health?.sleepScore ?? '—'}/1000`,
+    '',
+    checkIn?.coachingNote ? `RUNNER CHECK-IN NOTE: ${checkIn.coachingNote}` : '',
     '',
     'RECENT TRAINING (last 7 days):',
     ...recentLog.slice(0, 7).map(e => {
       const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
         .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
       return `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi in ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'} | Notes: ${e.postRunFeel ?? '—'}`
+    }),
+  ]
+  return lines.filter(Boolean).join('\n')
+}
+
+function buildPostWorkoutContext(
+  workout: PlannedWorkout,
+  phase: Phase | undefined,
+  nextRace: Race | undefined,
+  todayLogs: TrainingLogEntry[],
+  health: HealthEntry | undefined,
+  recentLog: TrainingLogEntry[],
+  recentHealth?: HealthEntry[],
+  checkIn?: CheckIn | null,
+): string {
+  const wip = phase ? weekInPhase(workout.date, phase) : null
+  const hrvValues = (recentHealth ?? []).filter(h => h.hrv).map(h => h.hrv!)
+  const hrvAvg7 = hrvValues.length
+    ? (hrvValues.reduce((s, v) => s + v, 0) / hrvValues.length).toFixed(1)
+    : null
+
+  const lines = [
+    `PLANNED WORKOUT: ${workout.dayType} — ${workout.runType ?? ''} — ${workout.workout ?? 'Unplanned'}`,
+    `Planned distance: ${workout.distance ?? '—'} mi | HR Zone: ${workout.hrZone ?? '—'} | Intensity: ${workout.intensity ?? '—'}`,
+    `Purpose: ${workout.reason ?? 'None specified'}`,
+    '',
+    phase ? `CURRENT PHASE: ${phase.name} (Week ${wip} of ${phase.weeks}) — ${phase.goal}` : '',
+    nextRace ? `TARGET RACE: ${nextRace.name} on ${nextRace.date} — Grade ${nextRace.grade}` : '',
+    '',
+    'ACTUAL ACTIVITIES TODAY:',
+    ...todayLogs.map(e => {
+      const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
+        .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
+      return `  ${e.activityType}: ${e.distance ?? '—'} mi | ${e.duration ?? '—'} min | Avg HR ${e.avgHr ?? '—'} | Max HR ${e.maxHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'} | Notes: ${e.postRunFeel ?? '—'} | Injury notes: ${e.injuryNotes ?? 'none'}`
+    }),
+    '',
+    `TODAY'S HEALTH: HRV ${health?.hrv != null ? Math.round(health.hrv) : '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/1000`,
+    '',
+    checkIn?.coachingNote ? `RUNNER CHECK-IN NOTE: ${checkIn.coachingNote}` : '',
+    '',
+    'RECENT TRAINING (last 7 days, excluding today):',
+    ...recentLog.slice(0, 7).map(e => {
+      const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
+        .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
+      return `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi | ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'}`
     }),
   ]
   return lines.filter(Boolean).join('\n')
@@ -165,9 +391,6 @@ function buildWeekContext(
   const yoga = actual.filter(e => /yoga/i.test(e.activityType))
   const gym = actual.filter(e => /weight|strength|gym|lift/i.test(e.activityType))
   const climb = actual.filter(e => /climb/i.test(e.activityType))
-  const other = actual.filter(e =>
-    !/run|ride|bike|cycling|yoga|weight|strength|gym|lift|climb/i.test(e.activityType)
-  )
 
   const totalPlanned = planned.reduce((s, w) => s + (w.distance ?? 0), 0)
   const totalRunMi = runs.reduce((s, e) => s + (e.distance ?? 0), 0)
