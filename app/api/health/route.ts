@@ -22,18 +22,22 @@ export async function POST(req: Request) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   const date = typeof body.date === 'string' ? body.date : today
 
+  // Use || '' (not ??) for fields where 0 is never a valid reading —
+  // the Shortcut sends 0 when no Health sample exists for that day.
+  function val(v: unknown) { return v || '' }
+
   const data: Record<string, unknown> = {
     'Date':                date,
-    'Resting HR':          body.restingHR        ?? body.restingHr ?? '',
-    'HRV (ms)':            body.hrv              ?? '',
-    'Sleep Quality':       body.sleepScore       ?? body.sleep ?? '',
-    'Respiratory Rate':    body.respiratoryRate  ?? '',
-    'Wrist Temp (°F)':     body.wristTemp        ?? '',
-    'Active Calories':     body.activeCalories   ?? '',
-    'Cardio Recovery':     body.cardioRecovery   ?? '',
-    'VO2 Max':             body.vo2max           ?? '',
-    'Weight (lbs)':        body.weight           ?? '',
-    'Water':               body.water            ?? '',
+    'Resting HR':          val(body.restingHR  ?? body.restingHr),
+    'HRV (ms)':            val(body.hrv),
+    'Sleep Quality':       body.sleepScore     ?? body.sleep ?? '',
+    'Respiratory Rate':    val(body.respiratoryRate),
+    'Wrist Temp (°F)':     val(body.wristTemp),
+    'Active Calories':     val(body.activeCalories),
+    'Cardio Recovery':     val(body.cardioRecovery),
+    'VO2 Max':             val(body.vo2max),
+    'Weight (lbs)':        val(body.weight),
+    'Water':               val(body.water),
   }
 
   try {
