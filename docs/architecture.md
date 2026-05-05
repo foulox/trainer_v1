@@ -43,12 +43,12 @@ Each spreadsheet has a small script attached to it (Google Apps Script) that act
 
 The four spreadsheets:
 
-| Spreadsheet | What's in it |
-|---|---|
-| **Training Plan** | Your daily plan, phases, and races |
-| **Training Data** | Raw Strava activity imports + Apple Health metrics |
-| **Training Log** | The actual workout log (built from Strava + manual entry) |
-| **Workout Library** | Catalog of workouts (shared with TigerWolves run club) |
+| Spreadsheet         | What's in it                                              |
+| ------------------- | --------------------------------------------------------- |
+| **Training Plan**   | Your daily plan, phases, and races                        |
+| **Training Data**   | Raw Strava activity imports + Apple Health metrics        |
+| **Training Log**    | The actual workout log (built from Strava + manual entry) |
+| **Workout Library** | Catalog of workouts (shared with TigerWolves run club)    |
 
 ### Strava
 The **activity source**. The app pulls your Strava activities on a schedule (twice a day on weekdays, twice on weekends). For each new activity it finds, it writes a row to the Training Data sheet and a row to the Training Log. For activities you've already synced, it fetches the full activity detail (including your private notes and perceived exertion) and updates the existing log row.
@@ -142,17 +142,17 @@ trainer_v1/
 
 This file defines the **shape** of every data object in the app. Think of these as blueprints — they describe what fields an object has and what type each field is. No logic, just definitions.
 
-| Type | What it represents |
-|---|---|
-| `PlannedWorkout` | One row from the Plan tab — date, day type, workout, distance, instructions, notes, etc. |
-| `Phase` | One training phase — name, start/end dates, goal |
-| `Race` | One race entry — name, date, distance, grade (A/B/C) |
-| `HealthEntry` | One day of health metrics — HRV, resting HR, respiratory rate, sleep score, steps, etc. |
-| `TrainingLogEntry` | One workout in the log — activity type, distance, duration, HR, zones, RPE, notes |
-| `StravaActivity` | One Strava activity as stored in the Training Data sheet |
-| `LibraryWorkout` | One workout from the library — name, sport, instructions, etc. |
-| `CoachingNote` | AI-generated daily coaching note — date, coaching text, workout purpose |
-| `WeekReview` | AI-generated week review — week number, summary, PT summary |
+| Type               | What it represents                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `PlannedWorkout`   | One row from the Plan tab — date, day type, workout, distance, instructions, notes, etc. |
+| `Phase`            | One training phase — name, start/end dates, goal                                         |
+| `Race`             | One race entry — name, date, distance, grade (A/B/C)                                     |
+| `HealthEntry`      | One day of health metrics — HRV, resting HR, respiratory rate, sleep score, steps, etc.  |
+| `TrainingLogEntry` | One workout in the log — activity type, distance, duration, HR, zones, RPE, notes        |
+| `StravaActivity`   | One Strava activity as stored in the Training Data sheet                                 |
+| `LibraryWorkout`   | One workout from the library — name, sport, instructions, etc.                           |
+| `CoachingNote`     | AI-generated daily coaching note — date, coaching text, workout purpose                  |
+| `WeekReview`       | AI-generated week review — week number, summary, PT summary                              |
 
 ---
 
