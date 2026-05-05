@@ -138,7 +138,7 @@ function DayEditor({
   const [showPicker, setShowPicker] = useState(false)
   const [filterType, setFilterType] = useState<string>('')
   const [filterSubType, setFilterSubType] = useState<string>('')
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [expandedVariation, setExpandedVariation] = useState<string | null>(null)
 
   const sportFiltered = useMemo(() => library.filter(w => {
     if (dayType === 'Run' && w.sport !== 'Run') return false
@@ -154,13 +154,13 @@ function DayEditor({
     })
   }, [sportFiltered, filterType, filterSubType])
 
-  // Standalone workouts (no group) + one representative per group
+  // Standalone workouts (no variation family) + one representative per variation family
   const pickerRows = useMemo(() => {
     const seen = new Set<string>()
     return filteredLibrary.filter(w => {
-      if (!w.group) return true
-      if (seen.has(w.group)) return false
-      seen.add(w.group)
+      if (!w.variation) return true
+      if (seen.has(w.variation)) return false
+      seen.add(w.variation)
       return true
     })
   }, [filteredLibrary])
@@ -293,7 +293,7 @@ function DayEditor({
                     {pickerRows.length === 0 ? (
                       <div className="text-xs text-gray-400 p-4 text-center">No workouts found</div>
                     ) : pickerRows.map((w, i) => {
-                      if (!w.group) {
+                      if (!w.variation) {
                         return (
                           <button key={`${w.name}-${i}`} onClick={() => { setSelectedWorkout(w); setShowPicker(false); if (!runType && w.type) setRunType(w.type) }}
                             className="w-full text-left px-4 py-3 hover:bg-blue-50 active:bg-blue-100 transition-colors">
@@ -302,31 +302,31 @@ function DayEditor({
                           </button>
                         )
                       }
-                      // Grouped workout — show family header + expandable variations
-                      const variations = filteredLibrary
-                        .filter(v => v.group === w.group)
-                        .sort((a, b) => (a.variation ?? 0) - (b.variation ?? 0))
-                      const isExpanded = expandedGroup === w.group
+                      // Variation family — show family header + expandable progressions
+                      const progressions = filteredLibrary
+                        .filter(v => v.variation === w.variation)
+                        .sort((a, b) => (a.progression ?? 0) - (b.progression ?? 0))
+                      const isExpanded = expandedVariation === w.variation
                       return (
-                        <div key={`group-${w.group}-${i}`}>
+                        <div key={`var-${w.variation}-${i}`}>
                           <button
-                            onClick={() => setExpandedGroup(isExpanded ? null : w.group)}
+                            onClick={() => setExpandedVariation(isExpanded ? null : w.variation)}
                             className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
                           >
                             <div>
-                              <div className="text-sm font-semibold text-gray-800">{w.group}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">{variations.length} variations</div>
+                              <div className="text-sm font-semibold text-gray-800">{w.variation}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{progressions.length} progressions</div>
                             </div>
                             <span className="text-xs text-gray-400 shrink-0">{isExpanded ? '▴' : '▾'}</span>
                           </button>
-                          {isExpanded && variations.map((v, j) => (
+                          {isExpanded && progressions.map((v, j) => (
                             <button
                               key={`${v.name}-${j}`}
-                              onClick={() => { setSelectedWorkout(v); setShowPicker(false); setExpandedGroup(null); if (!runType && v.type) setRunType(v.type) }}
+                              onClick={() => { setSelectedWorkout(v); setShowPicker(false); setExpandedVariation(null); if (!runType && v.type) setRunType(v.type) }}
                               className="w-full text-left px-6 py-2.5 bg-gray-50 hover:bg-blue-50 active:bg-blue-100 transition-colors border-t border-gray-100"
                             >
                               <div className="text-sm font-semibold text-gray-700">
-                                V{v.variation ?? j + 1} — {v.name}
+                                P{v.progression ?? j + 1} — {v.name}
                               </div>
                               {v.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{v.reason}</div>}
                             </button>

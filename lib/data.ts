@@ -35,8 +35,8 @@ export type LibraryWorkout = {
   energySystem: string
   hrZone: string
   rpe: string
-  group: string       // workout family name for progressive variations (e.g. "Introduction Power Endurance")
-  variation: number | null  // 1-N progression within group; null = standalone workout
+  variation: string       // workout family name (e.g. "Introduction Power Endurance"); blank = standalone
+  progression: number | null  // difficulty order 1-N within the variation family; null = standalone
 }
 
 export type Race = {
