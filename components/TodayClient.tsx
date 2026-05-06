@@ -229,11 +229,11 @@ export default function TodayClient({
         </div>
       )}
 
-      {viewHealth && (
+      {(viewHealth || isViewingToday) && (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-            <div className={`text-lg font-bold ${hrvColor(viewHealth.hrv)}`}>
-              {viewHealth.hrv != null ? Math.round(viewHealth.hrv) : '—'}
+            <div className={`text-lg font-bold ${hrvColor(viewHealth?.hrv ?? null)}`}>
+              {viewHealth?.hrv != null ? Math.round(viewHealth.hrv) : '—'}
             </div>
             <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
               <Zap size={10} /> HRV ms
@@ -274,7 +274,7 @@ export default function TodayClient({
             </div>
           </button>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-            <div className="text-lg font-bold text-gray-900">{viewHealth.restingHr ?? '—'}</div>
+            <div className="text-lg font-bold text-gray-900">{viewHealth?.restingHr ?? '—'}</div>
             <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
               <Heart size={10} /> RHR bpm
             </div>
