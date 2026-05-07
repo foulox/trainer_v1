@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn } from '@/lib/data'
-import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
-import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate } from '@/app/actions'
+import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 import CheckInDrawer from './CheckInDrawer'
 import ReactMarkdown from 'react-markdown'
@@ -93,14 +94,21 @@ export default function TodayClient({
   const [viewDate, setViewDate] = useState(today)
   const [note, setNote] = useState(initialCoachingNote)
   const [postNote, setPostNote] = useState(initialPostNote)
+  const router = useRouter()
   const [noteLoading, setNoteLoading] = useState(false)
   const [postNoteLoading, setPostNoteLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [refreshingHealth, setRefreshingHealth] = useState(false)
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
   const [showCheckIn, setShowCheckIn] = useState(false)
   const [regenerating, startRegenerate] = useTransition()
   const [reasonExpanded, setReasonExpanded] = useState(false)
+  const [instructionsExpanded, setInstructionsExpanded] = useState(false)
+  const [readinessExpanded, setReadinessExpanded] = useState(false)
+  const [workoutContextExpanded, setWorkoutContextExpanded] = useState(false)
+  const [postReadinessExpanded, setPostReadinessExpanded] = useState(false)
+  const [postWorkoutExpanded, setPostWorkoutExpanded] = useState(false)
   const [editingSleep, setEditingSleep] = useState(false)
   const [sleepInput, setSleepInput] = useState('')
   const [sleepScore, setSleepScore] = useState<number | null>(
@@ -133,10 +141,22 @@ export default function TodayClient({
   const isViewingToday = viewDate === today
   const hasActivities = viewLogs.length > 0
 
+  async function handleRefreshHealth() {
+    setRefreshingHealth(true)
+    await refreshHealthData()
+    router.refresh()
+    setRefreshingHealth(false)
+  }
+
   async function navigateDate(newDate: string) {
     if (newDate < minDate || newDate > maxDate) return
     setViewDate(newDate)
     setReasonExpanded(false)
+    setInstructionsExpanded(false)
+    setReadinessExpanded(false)
+    setWorkoutContextExpanded(false)
+    setPostReadinessExpanded(false)
+    setPostWorkoutExpanded(false)
     setEditingSleep(false)
     setSleepScore(health.find(e => e.date === newDate)?.sleepScore ?? null)
     if (newDate === today) {
@@ -230,55 +250,64 @@ export default function TodayClient({
       )}
 
       {(viewHealth || isViewingToday) && (
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-            <div className={`text-lg font-bold ${hrvColor(viewHealth?.hrv ?? null)}`}>
-              {viewHealth?.hrv != null ? Math.round(viewHealth.hrv) : '—'}
+        <div className="mb-4">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+              <Zap size={16} className={`mx-auto mb-1 ${hrvColor(viewHealth?.hrv ?? null)}`} />
+              <div className={`text-xl font-bold ${hrvColor(viewHealth?.hrv ?? null)}`}>
+                {viewHealth?.hrv != null ? Math.round(viewHealth.hrv) : '—'}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">HRV ms</div>
+              {hrv7dayAvg && (
+                <div className="text-xs text-gray-300 mt-0.5">{hrv7dayAvg} avg</div>
+              )}
             </div>
-            <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
-              <Zap size={10} /> HRV ms
+            <button
+              className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center w-full"
+              onClick={() => { setSleepInput(String(sleepScore ?? '')); setEditingSleep(true) }}
+            >
+              <Moon size={16} className="mx-auto mb-1 text-indigo-400" />
+              {editingSleep ? (
+                <input
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={sleepInput}
+                  autoFocus
+                  className="text-xl font-bold text-gray-900 w-full text-center bg-transparent outline-none"
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => setSleepInput(e.target.value)}
+                  onBlur={async () => {
+                    setEditingSleep(false)
+                    const val = parseInt(sleepInput)
+                    if (!isNaN(val) && val >= 0 && val <= 1000) {
+                      setSleepScore(val)
+                      await saveSleepScore(viewDate, val)
+                    }
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                />
+              ) : (
+                <div className="text-xl font-bold text-gray-900">{sleepScore ?? '—'}</div>
+              )}
+              <div className="text-xs text-gray-400 mt-0.5">Sleep {sleepScore == null ? '· tap to add' : '/1000'}</div>
+            </button>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+              <Heart size={16} className="mx-auto mb-1 text-red-400" />
+              <div className="text-xl font-bold text-gray-900">{viewHealth?.restingHr ?? '—'}</div>
+              <div className="text-xs text-gray-400 mt-0.5">RHR bpm</div>
             </div>
-            {hrv7dayAvg && (
-              <div className="text-xs text-gray-300 mt-0.5">{hrv7dayAvg} avg</div>
-            )}
           </div>
-          <button
-            className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center w-full"
-            onClick={() => { setSleepInput(String(sleepScore ?? '')); setEditingSleep(true) }}
-          >
-            {editingSleep ? (
-              <input
-                type="number"
-                min={0}
-                max={1000}
-                value={sleepInput}
-                autoFocus
-                className="text-lg font-bold text-gray-900 w-full text-center bg-transparent outline-none"
-                onClick={e => e.stopPropagation()}
-                onChange={e => setSleepInput(e.target.value)}
-                onBlur={async () => {
-                  setEditingSleep(false)
-                  const val = parseInt(sleepInput)
-                  if (!isNaN(val) && val >= 0 && val <= 1000) {
-                    setSleepScore(val)
-                    await saveSleepScore(viewDate, val)
-                  }
-                }}
-                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-              />
-            ) : (
-              <div className="text-lg font-bold text-gray-900">{sleepScore ?? '—'}</div>
-            )}
-            <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
-              <Moon size={10} /> Sleep
-            </div>
-          </button>
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-            <div className="text-lg font-bold text-gray-900">{viewHealth?.restingHr ?? '—'}</div>
-            <div className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
-              <Heart size={10} /> RHR bpm
-            </div>
-          </div>
+          {isViewingToday && (
+            <button
+              onClick={handleRefreshHealth}
+              disabled={refreshingHealth}
+              className="mt-1.5 w-full text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 flex items-center justify-center gap-1"
+            >
+              <RefreshCw size={11} className={refreshingHealth ? 'animate-spin' : ''} />
+              {refreshingHealth ? 'Refreshing…' : 'Refresh health data'}
+            </button>
+          )}
         </div>
       )}
 
@@ -315,11 +344,25 @@ export default function TodayClient({
             {displayEntry.targetPace && <span>{displayEntry.targetPace} /mi</span>}
             {viewPhase && <span>{viewPhase.name}</span>}
           </div>
-          {displayEntry.instructions && (
-            <div className="text-sm text-gray-800 leading-relaxed mb-3">
-              {displayEntry.instructions}
-            </div>
-          )}
+          {displayEntry.instructions && (() => {
+            const firstLine = displayEntry.instructions!.split(/\n|\.(?:\s|$)/)[0].trim()
+            const hasMore = displayEntry.instructions!.length > firstLine.length + 1
+            return (
+              <div className="mb-3">
+                <div className="text-sm text-gray-800 leading-relaxed font-mono">
+                  {instructionsExpanded ? displayEntry.instructions : firstLine}
+                </div>
+                {hasMore && (
+                  <button
+                    onClick={() => setInstructionsExpanded(v => !v)}
+                    className="mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-0.5"
+                  >
+                    {instructionsExpanded ? <><ChevronUp size={12} /> Less</> : <><ChevronDown size={12} /> Full workout</>}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
           {displayEntry.reason && (
             <button
               onClick={() => setReasonExpanded(v => !v)}
@@ -352,7 +395,7 @@ export default function TodayClient({
 
       {/* Pre-workout coaching card */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-3">
           <Brain size={14} className="text-slate-500" />
           <div className="text-xs font-bold text-slate-600 tracking-wide">
             {hasActivities ? 'PRE-WORKOUT' : 'ASSISTANT COACH'}
@@ -367,11 +410,63 @@ export default function TodayClient({
             </button>
           )}
         </div>
+
         {regenerating || noteLoading ? (
           <p className="text-sm text-gray-400 italic">Generating...</p>
         ) : note ? (
-          <div className="prose prose-sm prose-slate max-w-none">
-            <ReactMarkdown>{note.coachingTake}</ReactMarkdown>
+          <div className="space-y-3">
+            {/* Verdict — always visible */}
+            {note.verdict && (
+              <p className="text-sm font-semibold text-slate-800 leading-snug">{note.verdict}</p>
+            )}
+
+            {/* Readiness section */}
+            <div className="border-t border-slate-200 pt-2">
+              <button
+                onClick={() => setReadinessExpanded(v => !v)}
+                className="w-full flex items-center justify-between text-left gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Activity size={12} className="text-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Readiness</span>
+                </div>
+                {note.readinessSummary && !readinessExpanded && (
+                  <span className="text-xs text-slate-500 truncate max-w-[180px]">{note.readinessSummary}</span>
+                )}
+                {readinessExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
+              </button>
+              {readinessExpanded && (
+                <div className="mt-2 prose prose-sm prose-slate max-w-none">
+                  <ReactMarkdown>
+                    {note.coachingTake.match(/## Readiness([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? ''}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+
+            {/* Today's Workout section */}
+            <div className="border-t border-slate-200 pt-2">
+              <button
+                onClick={() => setWorkoutContextExpanded(v => !v)}
+                className="w-full flex items-center justify-between text-left gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap size={12} className="text-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Today's Workout</span>
+                </div>
+                {note.workoutSummary && !workoutContextExpanded && (
+                  <span className="text-xs text-slate-500 truncate max-w-[180px]">{note.workoutSummary}</span>
+                )}
+                {workoutContextExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
+              </button>
+              {workoutContextExpanded && (
+                <div className="mt-2 prose prose-sm prose-slate max-w-none">
+                  <ReactMarkdown>
+                    {note.coachingTake.match(/## Today's Workout in Context([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? ''}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <p className="text-sm text-gray-400 italic">
@@ -385,7 +480,7 @@ export default function TodayClient({
       {/* Post-workout coaching card — shown when activities are logged */}
       {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3">
             <Brain size={14} className="text-emerald-600" />
             <div className="text-xs font-bold text-emerald-700 tracking-wide">POST-WORKOUT</div>
             <button
@@ -399,8 +494,54 @@ export default function TodayClient({
           {postNoteLoading ? (
             <p className="text-sm text-gray-400 italic">Generating...</p>
           ) : postNote ? (
-            <div className="prose prose-sm prose-emerald max-w-none">
-              <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
+            <div className="space-y-3">
+              {postNote.verdict && (
+                <p className="text-sm font-semibold text-emerald-900 leading-snug">{postNote.verdict}</p>
+              )}
+              <div className="border-t border-emerald-200 pt-2">
+                <button
+                  onClick={() => setPostReadinessExpanded(v => !v)}
+                  className="w-full flex items-center justify-between text-left gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Activity size={12} className="text-emerald-500 shrink-0" />
+                    <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">What Happened</span>
+                  </div>
+                  {postNote.readinessSummary && !postReadinessExpanded && (
+                    <span className="text-xs text-emerald-600 truncate max-w-[180px]">{postNote.readinessSummary}</span>
+                  )}
+                  {postReadinessExpanded ? <ChevronUp size={14} className="text-emerald-400 shrink-0" /> : <ChevronDown size={14} className="text-emerald-400 shrink-0" />}
+                </button>
+                {postReadinessExpanded && (
+                  <div className="mt-2 prose prose-sm prose-emerald max-w-none">
+                    <ReactMarkdown>
+                      {postNote.coachingTake.match(/## What Happened([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? ''}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-emerald-200 pt-2">
+                <button
+                  onClick={() => setPostWorkoutExpanded(v => !v)}
+                  className="w-full flex items-center justify-between text-left gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap size={12} className="text-emerald-500 shrink-0" />
+                    <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Recovery Outlook</span>
+                  </div>
+                  {postNote.workoutSummary && !postWorkoutExpanded && (
+                    <span className="text-xs text-emerald-600 truncate max-w-[180px]">{postNote.workoutSummary}</span>
+                  )}
+                  {postWorkoutExpanded ? <ChevronUp size={14} className="text-emerald-400 shrink-0" /> : <ChevronDown size={14} className="text-emerald-400 shrink-0" />}
+                </button>
+                {postWorkoutExpanded && (
+                  <div className="mt-2 prose prose-sm prose-emerald max-w-none">
+                    <ReactMarkdown>
+                      {postNote.coachingTake.match(/## Recovery Outlook([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? ''}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-gray-400 italic">Tap ↻ to generate post-workout analysis.</p>

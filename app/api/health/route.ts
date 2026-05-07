@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 
 export async function POST(req: Request) {
   const secret = process.env.HEALTH_SYNC_SECRET
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
     })
     const result = await res.json() as { ok: boolean; error?: string }
     if (!result.ok) throw new Error(result.error ?? 'Sheet write failed')
+    revalidatePath('/')
     return NextResponse.json({ ok: true, date })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error'

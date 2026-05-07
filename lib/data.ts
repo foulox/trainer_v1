@@ -109,6 +109,9 @@ export type CoachingNote = {
   workoutPurpose: string
   coachingTake: string
   type?: 'pre' | 'post'
+  verdict?: string
+  readinessSummary?: string
+  workoutSummary?: string
 }
 
 export type CheckInMessage = {

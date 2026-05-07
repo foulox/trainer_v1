@@ -26,7 +26,7 @@ export async function generateCoachingNote(
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 600,
+    max_tokens: 700,
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
@@ -34,25 +34,39 @@ export async function generateCoachingNote(
 
 ${context}
 
-Format your response with two sections. Use bullet points, not tables. Be concise.
+Format your response EXACTLY as follows:
+
+VERDICT: [One sentence. State the specific data point driving the call (e.g. "HRV down 12ms", "sleep 580/1000") then give a clear, opinionated recommendation: go hard / take it easy / swap to the bike / check in with assistant coach first. Be direct. No hedging.]
 
 ## Readiness
-3–4 bullets: HRV (today vs 7-day avg), resting HR, sleep score, overall verdict (ready / cautious / back off).
+SUMMARY: [One line — the key readiness signal and bottom-line status]
+- HRV today vs 7-day avg with trend direction
+- Resting HR observation
+- Sleep score observation
+- Overall status: ready / cautious / back off
 
 ## Today's Workout in Context
-3–4 bullets: What this workout is building, why it matters NOW in this phase, how it connects to the race goal. Include recent load pattern and any flags. Reference the phase name and week within phase. Be specific about the physiological purpose.
+SUMMARY: [One line — what this session is and why it matters right now]
+- What this workout is building physiologically
+- Why it matters in this phase and week
+- How it connects to the race goal
+- Recent load pattern and any flags
 
 Reference specific numbers. No tables. No filler.`,
     }],
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
+  const parsed = parseCoachingResponse(text)
 
   return {
     date: workout.date,
     generatedAt: new Date().toISOString(),
     workoutPurpose: workout.reason ?? '',
-    coachingTake: text,
+    coachingTake: parsed.body,
+    verdict: parsed.verdict,
+    readinessSummary: parsed.readinessSummary,
+    workoutSummary: parsed.workoutSummary,
     type: 'pre',
   }
 }
@@ -79,26 +93,38 @@ export async function generatePostWorkoutNote(
 
 ${context}
 
-Format with two sections. Use bullet points, not tables.
+Format your response EXACTLY as follows:
+
+VERDICT: [One sentence. State a specific data point (effort level, zones, RPE, load) then give a clear takeaway: nailed it / solid effort / watch recovery / flag something. Be direct.]
 
 ## What Happened
-2–3 bullets: Compare planned vs actual (type, distance, duration, zones). If the athlete substituted (easy run for quality, bike for run, skipped) — assess whether it was a smart call. Reference actual numbers.
+SUMMARY: [One line — planned vs actual bottom line]
+- Compare planned vs actual (type, distance, duration, zones)
+- If substituted — assess whether it was a smart call
+- Reference actual numbers
 
 ## Recovery Outlook
-2–3 bullets: Based on today's effort (HR zones, duration, RPE), characterize training load (easy/moderate/hard). What recovery does tomorrow need? Flag anything — cumulative load, upcoming quality day, injury signals. Be direct.
+SUMMARY: [One line — load characterization and tomorrow's need]
+- Characterize today's load (easy/moderate/hard) based on zones, duration, RPE
+- What recovery does tomorrow need?
+- Flag anything — cumulative load, upcoming quality day, injury signals
 
 Reference specific numbers. No filler.`,
     }],
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
+  const parsed = parseCoachingResponse(text)
   const date = todayLogs[0]?.date ?? workout.date
 
   return {
     date,
     generatedAt: new Date().toISOString(),
     workoutPurpose: workout.reason ?? '',
-    coachingTake: text,
+    coachingTake: parsed.body,
+    verdict: parsed.verdict,
+    readinessSummary: parsed.readinessSummary,
+    workoutSummary: parsed.workoutSummary,
     type: 'post',
   }
 }
@@ -428,4 +454,25 @@ function buildWeekContext(
     injuryNotes ? `INJURY/BODY NOTES:\n${injuryNotes}` : '',
   ]
   return lines.filter(Boolean).join('\n')
+}
+
+function parseCoachingResponse(text: string): {
+  verdict: string
+  readinessSummary: string
+  workoutSummary: string
+  body: string
+} {
+  const verdictMatch = text.match(/^VERDICT:\s*(.+)/m)
+  const verdict = verdictMatch ? verdictMatch[1].trim() : ''
+
+  const readinessSummaryMatch = text.match(/## Readiness\nSUMMARY:\s*(.+)/m)
+  const readinessSummary = readinessSummaryMatch ? readinessSummaryMatch[1].trim() : ''
+
+  const workoutSummaryMatch = text.match(/## Today's Workout in Context\nSUMMARY:\s*(.+)/m)
+  const workoutSummary = workoutSummaryMatch ? workoutSummaryMatch[1].trim() : ''
+
+  const afterVerdict = text.replace(/^VERDICT:.+\n?/m, '').trim()
+  const body = afterVerdict.replace(/^SUMMARY:.+\n?/gm, '').trim()
+
+  return { verdict, readinessSummary, workoutSummary, body }
 }
