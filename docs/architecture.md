@@ -60,7 +60,11 @@ The **AI coaching engine**. When the app generates a coaching note or week revie
 A **fast key-value store** — think of it as a small cache that lives next to the app on Vercel. It holds AI-generated coaching notes and week reviews. The key is always a date, the value is the coaching note for that date. When the app needs a coaching note, it checks KV first. If it's there, it uses it (fast, no AI call). If it's not, it generates a new one and saves it to KV for next time.
 
 ### Apple Health (iOS Shortcut)
-Your **health metrics pipeline**. An iOS Shortcut on your phone reads data from the Health app (HRV, resting HR, respiratory rate, sleep score, steps, etc.) and sends it to the app via an API endpoint. The app writes that data to the Apple Health tab in the Training Data sheet. The shortcut runs when you trigger it — it's not fully automatic.
+Your **health metrics pipeline**. An iOS Shortcut on your phone reads data from the Health app (HRV, resting HR, respiratory rate, sleep score, steps, etc.) and sends it to the app's `/api/health` endpoint on Vercel. The app then writes that data to the Apple Health tab in the Training Data sheet.
+
+Important: the shortcut does **not** write directly to Google Sheets. The data goes through Vercel first — which is why the app can react immediately when health data arrives (bust the page cache, trigger coaching note regeneration). If the shortcut wrote straight to Sheets, the app would have no way to know new data had landed.
+
+The shortcut runs when you trigger it manually, or when an iOS Automation fires it (e.g. on wake-up). It is not self-running.
 
 ---
 
@@ -170,7 +174,7 @@ You open the app
   → Client component (TodayClient etc.) takes over for interactivity
 ```
 
-Sheet data is cached for 5 minutes. If you edit the sheet directly, the app won't see it for up to 5 minutes. Restarting the dev server clears the cache immediately.
+Sheet data is cached for 5 minutes — see the Caching section below for why, and how that cache gets cleared.
 
 ### Writing data (saves, edits)
 
@@ -187,7 +191,7 @@ You tap something (save a workout, enter sleep score, etc.)
 ### Strava sync
 
 ```
-Vercel cron fires (or you tap Sync)
+Vercel cron fires (or you tap Sync Strava)
   → /api/strava/sync/route.ts runs
   → lib/strava.ts gets an access token from Strava
   → Fetches last 14 days of activities from Strava list endpoint
@@ -195,29 +199,39 @@ Vercel cron fires (or you tap Sync)
       - If new: fetches full detail (for private_note + RPE), writes to Training Data sheet and Training Log
       - If already exists: fetches full detail, updates Post-Run Feel and RPE in Training Log
       - If unchanged: skips
+  → If any new activities were added for today:
+      - Busts the page cache (revalidatePath)
+      - Regenerates the post-workout coaching note in the background
 ```
 
 ### AI coaching note generation
 
 ```
-Vercel cron fires at 4am UTC (midnight ET) every night
-  → /api/cron/ai-coaching/route.ts runs
+Vercel cron fires at midnight ET every night
   → Fetches next 7 days of non-Rest workouts from the plan
-  → For each workout:
-      - Builds context: workout details + phase + next race + last 7 days of log + today's health metrics
-      - Sends context to Claude API (lib/ai.ts)
-      - Claude returns coaching text
-      - Text is saved to Vercel KV with the date as the key
-  
+  → For each workout: builds context, sends to Claude, saves result to Vercel KV
+
 When you open Today screen:
-  → Server component checks KV for today's coaching note
-  → If found: uses it (instant)
+  → Server component checks KV for today's note
+  → If found: uses it instantly (no AI call)
   → If missing: generates one on-demand, saves to KV
-  → You see the note immediately
-  
-When you tap Regenerate:
-  → Calls server action → regenerates from fresh data → saves to KV → updates UI
+
+The morning flow (how notes stay fresh with your actual health data):
+  1. iOS Shortcut POSTs HRV + RHR → /api/health → writes to Sheets → busts page cache
+  2. You enter sleep score → saved to Sheets → triggers coaching note regeneration in background
+  3. Fresh note (with your real HRV, RHR, sleep) lands in KV → you see it on next load
+
+When Strava sync adds a new activity for today:
+  → Post-workout coaching note regenerated automatically in background
+
+When you tap ↻ Regenerate:
+  → Forces fresh generation regardless of what's in KV → saves new note → updates UI
 ```
+
+The coaching note is structured in three layers:
+- **Verdict** — one sentence, always visible. Cites a specific number and gives a clear call (go hard / take it easy / swap to bike / check in first)
+- **Readiness** — HRV trend, resting HR, sleep score. Collapsed by default, tap to expand.
+- **Today's Workout in Context** — why this session matters right now. Collapsed by default, tap to expand.
 
 ---
 
@@ -252,6 +266,30 @@ The coaching output is structured into two sections:
 - **Training Context** — How today's workout fits the last 7 days. Any flags.
 
 The athlete profile (`lib/athlete-context.ts`) is injected into every prompt — your HRV baseline, PT directives (yoga/strength/core targets), cross-training rules, sleep scale, respiratory rate baseline. This is the file to edit when your training philosophy or PT guidance changes.
+
+---
+
+## Caching — How the App Stays Fast Without Being Stale
+
+The app fetches data from Google Sheets on every page load — but Sheets is slow (500ms–2 seconds per request). If every visitor triggered a live Sheets fetch, the app would feel sluggish. So Next.js caches the result.
+
+**The 5-minute cache:** The first time a page loads, Vercel fetches from Sheets and stores the result in memory. For the next 5 minutes, any page load uses that stored result — instant, no Sheets call. This is configured in `lib/sheets.ts` as `{ next: { revalidate: 300 } }` (300 seconds = 5 minutes).
+
+**The problem this creates:** If new data arrives (Apple Health shortcut runs, Strava sync completes), the app won't show it for up to 5 minutes — it's still serving the cached version.
+
+**How we defeat it — `revalidatePath`:** This is a Next.js function that says "throw away the cached version of this page right now." The next load is forced to fetch fresh from Sheets. Critically, `revalidatePath` only works server-side — it's the app talking to its own cache, not a message sent across the internet. Since both the app code and the cache live on Vercel, it's an instant in-memory operation.
+
+**What triggers cache busting in this app:**
+- Apple Health shortcut POSTs → `/api/health` writes to Sheets → `revalidatePath('/')` called immediately
+- Sleep score saved → `revalidatePath('/')` called
+- Strava sync completes with new activities → `revalidatePath('/')` called
+- Any plan edit, phase/race change → `revalidatePath` called for affected pages
+
+**The app is reactive, not proactive.** It doesn't sit watching for new data — it responds to requests. If the shortcut hasn't run yet when you open the app, there's nothing to show. The iOS Automation (running the shortcut automatically on wake) is the missing link that ensures data is there before you open the app.
+
+**Two separate caches:** Sheet data and AI coaching notes use different caches.
+- Sheet data: Next.js in-memory cache, 5-minute TTL, cleared by `revalidatePath`
+- Coaching notes: Vercel KV (a dedicated key-value store), 7-day TTL, cleared by explicit regeneration
 
 ---
 
@@ -328,7 +366,7 @@ The file `.env.local` holds all the secret keys. It is never committed to git �
 | `app/api/strava/sync/route.ts` | Triggers a Strava sync on demand |
 | `app/api/cron/ai-coaching/route.ts` | Nightly job: generate coaching notes for next 7 workouts |
 | `app/api/cron/week-review/route.ts` | Monday job: generate week-in-review |
-| `components/TodayClient.tsx` | Today UI: day navigation, workout display, health tiles, Head Coach, Assistant Coach |
+| `components/TodayClient.tsx` | Today UI: day navigation, workout display, health tiles, Coach FouLox, The Signal (Asst. Coach) |
 | `components/WeekClient.tsx` | Week UI: plan vs actual, zone bars, week review, PT summary |
 | `components/PlanClient.tsx` | Plan UI: week grid, day editor, phase/race management |
 | `components/LibraryClient.tsx` | Library UI: workout catalog, add workout form |
