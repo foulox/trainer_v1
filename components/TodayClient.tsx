@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn } from '@/lib/data'
-import { Brain, Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity } from 'lucide-react'
+import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
@@ -387,7 +387,8 @@ export default function TodayClient({
       {displayEntry && displayEntry.notes && displayEntry.date === viewDate && (
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
-            <div className="text-xs font-bold text-indigo-500 tracking-wide">HEAD COACH</div>
+            <Smile size={14} className="text-indigo-400" />
+            <div className="text-xs font-bold text-indigo-500 tracking-wide">Coach FouLox</div>
           </div>
           <p className="text-sm text-indigo-900 leading-relaxed">{displayEntry.notes}</p>
         </div>
@@ -396,10 +397,9 @@ export default function TodayClient({
       {/* Pre-workout coaching card */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
-          <Brain size={14} className="text-slate-500" />
-          <div className="text-xs font-bold text-slate-600 tracking-wide">
-            {hasActivities ? 'PRE-WORKOUT' : 'ASSISTANT COACH'}
-          </div>
+          <Radio size={14} className="text-slate-500" />
+          <div className="text-xs font-bold text-slate-600 tracking-wide">The Signal</div>
+          <div className="text-xs text-slate-400">Asst. Coach</div>
           {displayEntry && displayEntry.dayType !== 'Rest' && displayEntry.date === viewDate && (
             <button
               onClick={handleRegenerate}
@@ -481,8 +481,9 @@ export default function TodayClient({
       {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
-            <Brain size={14} className="text-emerald-600" />
-            <div className="text-xs font-bold text-emerald-700 tracking-wide">POST-WORKOUT</div>
+            <Radio size={14} className="text-emerald-600" />
+            <div className="text-xs font-bold text-emerald-700 tracking-wide">The Signal</div>
+            <div className="text-xs text-emerald-500">Asst. Coach</div>
             <button
               onClick={handleGeneratePostNote}
               disabled={postNoteLoading}
