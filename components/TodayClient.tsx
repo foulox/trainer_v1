@@ -388,7 +388,7 @@ export default function TodayClient({
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
             <Smile size={14} className="text-indigo-400" />
-            <div className="text-xs font-bold text-indigo-500 tracking-wide">Coach FouLox</div>
+            <div className="text-xs font-bold text-indigo-500 tracking-wide">Coach FouLox ✓</div>
           </div>
           <p className="text-sm text-indigo-900 leading-relaxed">{displayEntry.notes}</p>
         </div>
