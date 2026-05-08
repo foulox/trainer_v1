@@ -1,4 +1,4 @@
-import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
+import { fetchPlanData, fetchTrainingData, fetchTrainingLog, fetchLibrary } from '@/lib/sheets'
 import { getCoachingNote, setCoachingNote, getPostCoachingNote, getCheckIn } from '@/lib/kv'
 import { generateCoachingNote } from '@/lib/ai'
 import TodayClient from '@/components/TodayClient'
@@ -6,10 +6,11 @@ import TodayClient from '@/components/TodayClient'
 export default async function TodayPage() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
-  const [{ plan, phases, races }, { health, strava }, log] = await Promise.all([
+  const [{ plan, phases, races }, { health, strava }, log, library] = await Promise.all([
     fetchPlanData(),
     fetchTrainingData(),
     fetchTrainingLog(),
+    fetchLibrary(),
   ])
 
   const todayEntry = plan.find(e => e.date === today)
@@ -38,6 +39,7 @@ export default async function TodayPage() {
       health={health}
       log={log}
       strava={strava}
+      library={library}
       initialCoachingNote={initialCoachingNote}
       initialPostNote={initialPostNote}
       initialCheckIn={checkIn}

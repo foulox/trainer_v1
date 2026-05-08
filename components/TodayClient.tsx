@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn } from '@/lib/data'
+import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn, LibraryWorkout } from '@/lib/data'
 import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
@@ -82,13 +82,14 @@ type Props = {
   health: HealthEntry[]
   log: TrainingLogEntry[]
   strava: StravaActivity[]
+  library: LibraryWorkout[]
   initialCoachingNote: CoachingNote | null
   initialPostNote: CoachingNote | null
   initialCheckIn: CheckIn | null
 }
 
 export default function TodayClient({
-  today, plan, phases, races, health, log, strava,
+  today, plan, phases, races, health, log, strava, library,
   initialCoachingNote, initialPostNote, initialCheckIn,
 }: Props) {
   const [viewDate, setViewDate] = useState(today)
@@ -133,6 +134,12 @@ export default function TodayClient({
   const nextWorkout = plan.find(e => e.date >= viewDate && e.dayType !== 'Rest') ?? null
   const displayEntry = viewEntry ?? (viewDate === today ? nextWorkout : null)
   const isRestDay = viewEntry?.dayType === 'Rest'
+
+  const libraryMatch = displayEntry?.workout
+    ? library.find(w => w.name.toLowerCase() === displayEntry.workout!.toLowerCase()) ?? null
+    : null
+  const workoutInstructions = libraryMatch?.instructions || displayEntry?.instructions || null
+  const workoutReason = libraryMatch?.reason || displayEntry?.reason || null
 
   const planDates = plan.map(e => e.date).sort()
   const minDate = planDates[0] ?? today
@@ -344,13 +351,13 @@ export default function TodayClient({
             {displayEntry.targetPace && <span>{displayEntry.targetPace} /mi</span>}
             {viewPhase && <span>{viewPhase.name}</span>}
           </div>
-          {displayEntry.instructions && (() => {
-            const firstLine = displayEntry.instructions!.split(/\n|\.(?:\s|$)/)[0].trim()
-            const hasMore = displayEntry.instructions!.length > firstLine.length + 1
+          {workoutInstructions && (() => {
+            const firstLine = workoutInstructions.split(/\n|\.(?:\s|$)/)[0].trim()
+            const hasMore = workoutInstructions.length > firstLine.length + 1
             return (
               <div className="mb-3">
                 <div className="text-sm text-gray-800 leading-relaxed font-mono">
-                  {instructionsExpanded ? displayEntry.instructions : firstLine}
+                  {instructionsExpanded ? workoutInstructions : firstLine}
                 </div>
                 {hasMore && (
                   <button
@@ -363,7 +370,7 @@ export default function TodayClient({
               </div>
             )
           })()}
-          {displayEntry.reason && (
+          {workoutReason && (
             <button
               onClick={() => setReasonExpanded(v => !v)}
               className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-3"
@@ -372,9 +379,9 @@ export default function TodayClient({
               <span>{reasonExpanded ? '▴' : '▾'}</span>
             </button>
           )}
-          {displayEntry.reason && reasonExpanded && (
+          {workoutReason && reasonExpanded && (
             <div className="text-sm text-gray-500 leading-relaxed mb-3 pl-2 border-l-2 border-gray-100">
-              {displayEntry.reason}
+              {workoutReason}
             </div>
           )}
         </div>
