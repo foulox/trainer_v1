@@ -59,18 +59,24 @@ function normalizeSport(raw: string): string {
 
 function mapLibraryWorkout(row: Row): LibraryWorkout {
   return {
-    name:         str(row['Workout Name']),
-    sport:        normalizeSport(str(row['Sport'])),
-    category:     str(row['Category']),
-    type:         str(row['Type']),
-    reason:       str(row['Reason / Purpose']),
-    instructions: str(row['Instructions']),
-    distTime:     str(row['Dist/Time']),
-    energySystem: str(row['Energy System']),
-    hrZone:       str(row['HR Zone']),
-    rpe:          str(row['RPE']),
-    variation:    str(row['Variation']),
-    progression:  num(row['Progression']),
+    name:          str(row['Workout Name']),
+    sport:         normalizeSport(str(row['Sport'])),
+    category:      str(row['Category']),
+    type:          str(row['Type']),
+    reason:        str(row['Reason / Purpose']),
+    instructions:  str(row['Instructions']),
+    distTime:      str(row['Dist/Time']),
+    lapStructure:  str(row['Lap Structure']),
+    energySystem:  str(row['Energy System']),
+    hrZone:        str(row['HR Zone']),
+    rpe:           str(row['RPE']),
+    coachingNotes: str(row['Coaching Notes']) || null,
+    mapLink:       str(row['Map Link']) || null,
+    variation:     str(row['Variation']),
+    progression:   num(row['Progression']),
+    author:        str(row['Author']) || null,
+    raceTypes:     str(row['Race Type']).split(',').map(s => s.trim()).filter(Boolean),
+    trainingPhases: str(row['Training Phase']).split(',').map(s => s.trim()).filter(Boolean),
   }
 }
 

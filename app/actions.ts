@@ -400,7 +400,7 @@ export async function syncStrava(): Promise<{ added: number; skipped: number; er
   return result
 }
 
-export async function addLibraryWorkout(data: {
+type LibraryWorkoutInput = {
   name: string
   sport: string
   category: string
@@ -408,30 +408,61 @@ export async function addLibraryWorkout(data: {
   reason: string
   instructions: string
   distTime: string
-}) {
+  lapStructure: string
+  energySystem: string
+  hrZone: string
+  rpe: string
+  coachingNotes: string
+  mapLink: string
+  author: string
+  raceTypes: string[]
+  trainingPhases: string[]
+}
+
+function buildLibraryPayload(data: LibraryWorkoutInput, variation = '', progression = '') {
+  return {
+    'Workout Name': data.name,
+    'Sport': data.sport,
+    'Category': data.category,
+    'Type': data.type,
+    'Reason / Purpose': data.reason,
+    'Instructions': data.instructions,
+    'Dist/Time': data.distTime,
+    'Lap Structure': data.lapStructure,
+    'Energy System': data.energySystem,
+    'HR Zone': data.hrZone,
+    'RPE': data.rpe,
+    'Last Ran': '',
+    'Coaching Notes': data.coachingNotes,
+    'Map Link': data.mapLink,
+    'Author': data.author,
+    'Race Type': data.raceTypes.join(', '),
+    'Training Phase': data.trainingPhases.join(', '),
+    'Variation': variation,
+    'Progression': progression,
+  }
+}
+
+async function postToLibrary(payload: Record<string, string>) {
   const url = process.env.LIBRARY_SHEETS_URL
   if (!url) throw new Error('LIBRARY_SHEETS_URL not set')
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      'Workout Name': data.name,
-      'Sport': data.sport,
-      'Category': data.category,
-      'Type': data.type,
-      'Reason / Purpose': data.reason,
-      'Instructions': data.instructions,
-      'Dist/Time': data.distTime,
-      'Lap Structure': '',
-      'Energy System': '',
-      'HR Zone': '',
-      'RPE': '',
-      'Last Ran': '',
-      'Coaching Notes': '',
-      'Map Link': '',
-    }),
+    body: JSON.stringify(payload),
   })
   const json = await res.json() as { ok: boolean; error?: string }
   if (!json.ok) throw new Error(json.error ?? 'Save failed')
+}
+
+export async function addLibraryWorkout(data: LibraryWorkoutInput) {
+  await postToLibrary(buildLibraryPayload(data))
+  revalidatePath('/library')
+}
+
+export async function addLibraryWorkoutFamily(data: LibraryWorkoutInput, variations: string[]) {
+  for (let i = 0; i < variations.length; i++) {
+    await postToLibrary(buildLibraryPayload(data, variations[i], String(i + 1)))
+  }
   revalidatePath('/library')
 }

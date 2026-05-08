@@ -32,12 +32,37 @@ export type LibraryWorkout = {
   reason: string
   instructions: string
   distTime: string
+  lapStructure: string
   energySystem: string
   hrZone: string
   rpe: string
-  variation: string       // workout family name (e.g. "Introduction Power Endurance"); blank = standalone
-  progression: number | null  // difficulty order 1-N within the variation family; null = standalone
+  coachingNotes: string | null
+  mapLink: string | null
+  variation: string
+  progression: number | null
+  author: string | null
+  raceTypes: string[]
+  trainingPhases: string[]
 }
+
+export const RACE_TYPES = ['Mile', '5K', '10K', 'Half', 'Full'] as const
+export const TRAINING_PHASES = ['Base', 'Build', 'Peak', 'Taper'] as const
+
+export const ABBREVIATIONS: { abbr: string; meaning: string }[] = [
+  { abbr: 'WU', meaning: 'Warm-up' },
+  { abbr: 'CD', meaning: 'Cool-down' },
+  { abbr: 'r', meaning: 'Recovery' },
+  { abbr: '@', meaning: 'At pace' },
+  { abbr: 'MP', meaning: 'Marathon Pace' },
+  { abbr: 'HMP', meaning: 'Half Marathon Pace' },
+  { abbr: '10M', meaning: '10-Mile Pace' },
+  { abbr: '10K / 5K', meaning: 'Race pace at that distance' },
+  { abbr: 'LT', meaning: 'Lactate Threshold' },
+  { abbr: 'Z1–Z5', meaning: 'Heart Rate Zones 1–5' },
+  { abbr: 'RPE', meaning: 'Rate of Perceived Exertion (1–10)' },
+  { abbr: '×', meaning: 'Repeats / sets' },
+  { abbr: 's / min', meaning: 'Seconds / minutes' },
+]
 
 export type Race = {
   name: string
