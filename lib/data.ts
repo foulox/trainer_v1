@@ -137,6 +137,10 @@ export type CoachingNote = {
   verdict?: string
   readinessSummary?: string
   workoutSummary?: string
+  readinessScore?: number
+  effortMode?: 'rest' | 'easy' | 'moderate' | 'hard' | 'race'
+  effortLabel?: string
+  effortReason?: string
 }
 
 export type CheckInMessage = {

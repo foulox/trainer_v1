@@ -38,6 +38,11 @@ Format your response EXACTLY as follows:
 
 VERDICT: [One sentence. State the specific data point driving the call (e.g. "HRV down 12ms", "sleep 580/1000") then give a clear, opinionated recommendation: go hard / take it easy / swap to the bike / check in with assistant coach first. Be direct. No hedging.]
 
+READINESS_SCORE: [integer 1-10, where 1=depleted/injured and 10=peak/race-ready]
+EFFORT_MODE: [one of exactly: rest|easy|moderate|hard|race]
+EFFORT_LABEL: [≤5 words: clear action phrase e.g. "Execute the plan" / "Keep it conversational" / "Recovery jog only" / "Race pace today"]
+EFFORT_REASON: [≤8 words: key data point driving the call e.g. "HRV down 8ms, quality day tomorrow"]
+
 ## Readiness
 SUMMARY: [One line — the key readiness signal and bottom-line status]
 - HRV today vs 7-day avg with trend direction
@@ -67,6 +72,10 @@ Reference specific numbers. No tables. No filler.`,
     verdict: parsed.verdict,
     readinessSummary: parsed.readinessSummary,
     workoutSummary: parsed.workoutSummary,
+    readinessScore: parsed.readinessScore,
+    effortMode: parsed.effortMode,
+    effortLabel: parsed.effortLabel,
+    effortReason: parsed.effortReason,
     type: 'pre',
   }
 }
@@ -461,6 +470,10 @@ function parseCoachingResponse(text: string): {
   readinessSummary: string
   workoutSummary: string
   body: string
+  readinessScore: number | undefined
+  effortMode: 'rest' | 'easy' | 'moderate' | 'hard' | 'race' | undefined
+  effortLabel: string | undefined
+  effortReason: string | undefined
 } {
   const verdictMatch = text.match(/^VERDICT:\s*(.+)/m)
   const verdict = verdictMatch ? verdictMatch[1].trim() : ''
@@ -471,8 +484,29 @@ function parseCoachingResponse(text: string): {
   const workoutSummaryMatch = text.match(/## Today's Workout in Context\nSUMMARY:\s*(.+)/m)
   const workoutSummary = workoutSummaryMatch ? workoutSummaryMatch[1].trim() : ''
 
-  const afterVerdict = text.replace(/^VERDICT:.+\n?/m, '').trim()
-  const body = afterVerdict.replace(/^SUMMARY:.+\n?/gm, '').trim()
+  const scoreMatch = text.match(/^READINESS_SCORE:\s*(\d+)/m)
+  const readinessScore = scoreMatch ? Math.min(10, Math.max(1, parseInt(scoreMatch[1]))) : undefined
 
-  return { verdict, readinessSummary, workoutSummary, body }
+  const modeMatch = text.match(/^EFFORT_MODE:\s*(\w+)/m)
+  const rawMode = modeMatch ? modeMatch[1].toLowerCase() : ''
+  const effortMode = (['rest', 'easy', 'moderate', 'hard', 'race'] as const).includes(rawMode as never)
+    ? rawMode as 'rest' | 'easy' | 'moderate' | 'hard' | 'race'
+    : undefined
+
+  const effortLabelMatch = text.match(/^EFFORT_LABEL:\s*(.+)/m)
+  const effortLabel = effortLabelMatch ? effortLabelMatch[1].trim() : undefined
+
+  const effortReasonMatch = text.match(/^EFFORT_REASON:\s*(.+)/m)
+  const effortReason = effortReasonMatch ? effortReasonMatch[1].trim() : undefined
+
+  const afterVerdict = text.replace(/^VERDICT:.+\n?/m, '').trim()
+  const body = afterVerdict
+    .replace(/^SUMMARY:.+\n?/gm, '')
+    .replace(/^READINESS_SCORE:.+\n?/gm, '')
+    .replace(/^EFFORT_MODE:.+\n?/gm, '')
+    .replace(/^EFFORT_LABEL:.+\n?/gm, '')
+    .replace(/^EFFORT_REASON:.+\n?/gm, '')
+    .trim()
+
+  return { verdict, readinessSummary, workoutSummary, body, readinessScore, effortMode, effortLabel, effortReason }
 }

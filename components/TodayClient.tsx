@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn, LibraryWorkout } from '@/lib/data'
 import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -74,6 +74,51 @@ function ZoneBar({ logs }: { logs: TrainingLogEntry[] }) {
   )
 }
 
+const EFFORT_MODES = ['rest', 'easy', 'moderate', 'hard', 'race'] as const
+const EFFORT_LABELS: Record<string, string> = { rest: 'Rest', easy: 'Easy', moderate: 'Mod', hard: 'Hard', race: 'Race' }
+const EFFORT_DOT: Record<string, string> = {
+  rest: 'bg-gray-400', easy: 'bg-blue-400', moderate: 'bg-amber-400', hard: 'bg-orange-500', race: 'bg-red-500',
+}
+const EFFORT_LINE: Record<string, string> = {
+  rest: 'bg-gray-300', easy: 'bg-blue-200', moderate: 'bg-amber-200', hard: 'bg-orange-200', race: 'bg-red-200',
+}
+const EFFORT_TEXT: Record<string, string> = {
+  rest: 'text-gray-600', easy: 'text-blue-600', moderate: 'text-amber-600', hard: 'text-orange-600', race: 'text-red-600',
+}
+
+function EffortScale({ mode }: { mode: string }) {
+  const activeIdx = EFFORT_MODES.indexOf(mode as typeof EFFORT_MODES[number])
+  return (
+    <div className="flex items-start">
+      {EFFORT_MODES.map((m, i) => {
+        const isActive = m === mode
+        const isBefore = i < activeIdx
+        return (
+          <React.Fragment key={m}>
+            {i > 0 && (
+              <div className={`flex-1 h-px mt-[5px] ${isBefore ? EFFORT_LINE[mode] ?? 'bg-gray-200' : 'bg-gray-100'}`} />
+            )}
+            <div className="flex flex-col items-center gap-0.5">
+              <div className={`w-2.5 h-2.5 rounded-full ${
+                isActive ? `${EFFORT_DOT[m]} ring-2 ring-offset-1 ring-gray-600` : isBefore ? 'bg-gray-200' : 'bg-gray-100'
+              }`} />
+              <span className={`text-[10px] leading-none font-semibold ${isActive ? EFFORT_TEXT[m] : 'text-gray-300'}`}>
+                {EFFORT_LABELS[m]}
+              </span>
+            </div>
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+function readinessScoreColor(score: number) {
+  if (score >= 7) return 'text-emerald-600'
+  if (score >= 4) return 'text-amber-500'
+  return 'text-red-500'
+}
+
 type Props = {
   today: string
   plan: PlannedWorkout[]
@@ -110,6 +155,8 @@ export default function TodayClient({
   const [workoutContextExpanded, setWorkoutContextExpanded] = useState(false)
   const [postReadinessExpanded, setPostReadinessExpanded] = useState(false)
   const [postWorkoutExpanded, setPostWorkoutExpanded] = useState(false)
+  const [readinessBarExpanded, setReadinessBarExpanded] = useState(false)
+  const [effortExpanded, setEffortExpanded] = useState(false)
   const [editingSleep, setEditingSleep] = useState(false)
   const [sleepInput, setSleepInput] = useState('')
   const [sleepScore, setSleepScore] = useState<number | null>(
@@ -164,6 +211,8 @@ export default function TodayClient({
     setWorkoutContextExpanded(false)
     setPostReadinessExpanded(false)
     setPostWorkoutExpanded(false)
+    setReadinessBarExpanded(false)
+    setEffortExpanded(false)
     setEditingSleep(false)
     setSleepScore(health.find(e => e.date === newDate)?.sleepScore ?? null)
     if (newDate === today) {
@@ -314,6 +363,67 @@ export default function TodayClient({
               <RefreshCw size={11} className={refreshingHealth ? 'animate-spin' : ''} />
               {refreshingHealth ? 'Refreshing…' : 'Refresh health data'}
             </button>
+          )}
+        </div>
+      )}
+
+      {/* Readiness + Effort card — shown when The Signal has a score */}
+      {note?.readinessScore != null && (
+        <div className="mb-4 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Readiness bar */}
+          <button
+            onClick={() => setReadinessBarExpanded(v => !v)}
+            className="w-full p-4 text-left touch-manipulation"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-gray-400 tracking-wide uppercase">Readiness</span>
+              <span className={`text-sm font-bold ${readinessScoreColor(note.readinessScore)}`}>
+                {note.readinessScore}/10
+              </span>
+            </div>
+            <div className="relative h-2 rounded-full bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 mb-2.5">
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white border-2 border-gray-700 rounded-full shadow"
+                style={{ left: `${Math.round(((note.readinessScore - 1) / 9) * 100)}%` }}
+              />
+            </div>
+            {note.readinessSummary && (
+              <p className="text-xs text-gray-500 leading-snug">{note.readinessSummary}</p>
+            )}
+          </button>
+          {readinessBarExpanded && (
+            <div className="px-4 pb-4 prose prose-sm prose-slate max-w-none border-t border-gray-50 pt-3">
+              <ReactMarkdown>
+                {note.coachingTake.match(/## Readiness([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? note.readinessSummary ?? ''}
+              </ReactMarkdown>
+            </div>
+          )}
+
+          {/* Effort guidance */}
+          {note.effortMode && (
+            <>
+              <div className="h-px bg-gray-100 mx-4" />
+              <button
+                onClick={() => setEffortExpanded(v => !v)}
+                className="w-full p-4 text-left touch-manipulation"
+              >
+                <div className="text-xs font-bold text-gray-400 tracking-wide uppercase mb-3">Today&apos;s Effort</div>
+                <EffortScale mode={note.effortMode} />
+                {note.effortLabel && (
+                  <div className="mt-2.5 text-sm font-semibold text-gray-800">{note.effortLabel}</div>
+                )}
+                {note.effortReason && (
+                  <div className="text-xs text-gray-400 mt-0.5">{note.effortReason}</div>
+                )}
+              </button>
+              {effortExpanded && (
+                <div className="px-4 pb-4 prose prose-sm prose-slate max-w-none border-t border-gray-50 pt-3">
+                  <ReactMarkdown>
+                    {note.coachingTake.match(/## Today's Workout in Context([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? note.workoutSummary ?? ''}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
