@@ -424,7 +424,9 @@ export default function TodayClient({
           <div className="space-y-3">
             {/* Verdict — always visible */}
             {note.verdict && (
-              <p className="text-sm font-semibold text-slate-800 leading-snug">{note.verdict}</p>
+              <div className="text-sm font-semibold text-slate-800 leading-snug prose prose-sm prose-slate max-w-none [&_p]:mb-0 [&_p]:font-semibold [&_p]:text-sm [&_p]:leading-snug">
+                <ReactMarkdown>{note.verdict}</ReactMarkdown>
+              </div>
             )}
 
             {/* Readiness section */}
@@ -437,11 +439,11 @@ export default function TodayClient({
                   <Activity size={12} className="text-slate-400 shrink-0" />
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Readiness</span>
                 </div>
-                {note.readinessSummary && !readinessExpanded && (
-                  <span className="text-xs text-slate-500 truncate max-w-[180px]">{note.readinessSummary}</span>
-                )}
                 {readinessExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
               </button>
+              {note.readinessSummary && !readinessExpanded && (
+                <p className="text-xs text-slate-600 mt-1 leading-snug">{note.readinessSummary}</p>
+              )}
               {readinessExpanded && (
                 <div className="mt-2 prose prose-sm prose-slate max-w-none">
                   <ReactMarkdown>
@@ -461,11 +463,11 @@ export default function TodayClient({
                   <Zap size={12} className="text-slate-400 shrink-0" />
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Today's Workout</span>
                 </div>
-                {note.workoutSummary && !workoutContextExpanded && (
-                  <span className="text-xs text-slate-500 truncate max-w-[180px]">{note.workoutSummary}</span>
-                )}
                 {workoutContextExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
               </button>
+              {note.workoutSummary && !workoutContextExpanded && (
+                <p className="text-xs text-slate-600 mt-1 leading-snug">{note.workoutSummary}</p>
+              )}
               {workoutContextExpanded && (
                 <div className="mt-2 prose prose-sm prose-slate max-w-none">
                   <ReactMarkdown>

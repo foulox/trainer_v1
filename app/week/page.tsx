@@ -41,22 +41,16 @@ export default async function WeekPage() {
     if (weekReview) await setWeekReview(weekReview).catch(() => {})
   }
 
-  const currentPhase = phases.find(p => p.startDate <= today && p.endDate >= today) ?? phases[0] ?? null
-  const nextRace = races.filter(r => r.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
-
   return (
     <WeekClient
       today={today}
-      weekStart={start}
-      weekEnd={end}
-      weekNum={weekNum}
-      weekPlan={weekPlan}
-      weekLog={weekLog}
-      weekHealth={weekHealth}
-      weekReview={weekReview}
-      currentPhase={currentPhase}
-      nextRace={nextRace}
-      stravaActivities={weekStrava}
+      initialWeekStart={start}
+      plan={plan}
+      log={log}
+      health={health}
+      phases={phases}
+      strava={strava}
+      initialWeekReview={weekReview}
     />
   )
 }

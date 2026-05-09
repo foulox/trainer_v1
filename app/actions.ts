@@ -304,6 +304,22 @@ export async function applyWorkoutToWeekday(payload: {
   revalidatePath('/')
 }
 
+export async function fetchWeekReviewForWeek(weekStart: string): Promise<WeekReview | null> {
+  try {
+    const weekEnd = new Date(new Date(weekStart + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10)
+    const [{ plan }, , log] = await Promise.all([
+      fetchPlanData(),
+      fetchTrainingData(),
+      fetchTrainingLog(),
+    ])
+    const weekNum = plan.filter(e => e.date >= weekStart && e.date <= weekEnd)[0]?.week ?? 0
+    return await getWeekReview(weekNum).catch(() => null)
+  } catch {
+    return null
+  }
+}
+
 export async function regenerateWeekReview(weekStart: string): Promise<WeekReview | null> {
   try {
     const weekEnd = new Date(new Date(weekStart + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000)

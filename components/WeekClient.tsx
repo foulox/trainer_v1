@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Copy, Check, Brain, RefreshCw, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Copy, Check, Brain, RefreshCw, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, Race, StravaActivity } from '@/lib/data'
-import { regenerateWeekReview, generatePTSummaryAction } from '@/app/actions'
+import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, StravaActivity } from '@/lib/data'
+import { regenerateWeekReview, fetchWeekReviewForWeek, generatePTSummaryAction } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 import DayDrawer from './DayDrawer'
 
@@ -16,6 +16,19 @@ function fmt(iso: string) {
 
 function fmtDay(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+function addDays(iso: string, n: number) {
+  const d = new Date(iso + 'T00:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+function getWeekMonday(iso: string) {
+  const d = new Date(iso + 'T00:00:00')
+  const day = d.getDay()
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  return d.toISOString().slice(0, 10)
 }
 
 function runTypeDot(entry: PlannedWorkout) {
@@ -49,27 +62,26 @@ function ZoneBar({ logs }: { logs: TrainingLogEntry[] }) {
 
 type Props = {
   today: string
-  weekStart: string
-  weekEnd: string
-  weekNum: number
-  weekPlan: PlannedWorkout[]
-  weekLog: TrainingLogEntry[]
-  weekHealth: HealthEntry[]
-  weekReview: WeekReview | null
-  currentPhase: Phase | null
-  nextRace: Race | null
-  stravaActivities: StravaActivity[]
+  initialWeekStart: string
+  plan: PlannedWorkout[]
+  log: TrainingLogEntry[]
+  health: HealthEntry[]
+  phases: Phase[]
+  strava: StravaActivity[]
+  initialWeekReview: WeekReview | null
 }
 
 export default function WeekClient({
-  today, weekStart, weekEnd, weekNum, weekPlan, weekLog,
-  weekHealth, weekReview, currentPhase, stravaActivities,
+  today, initialWeekStart, plan, log, health, phases, strava, initialWeekReview,
 }: Props) {
-  const [review, setReview] = useState(weekReview)
-  const [copied, setCopied] = useState(false)
+  const [viewWeekStart, setViewWeekStart] = useState(initialWeekStart)
+  const [weekReviews, setWeekReviews] = useState<Record<string, WeekReview | null>>(
+    { [initialWeekStart]: initialWeekReview }
+  )
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
   const [drawerDate, setDrawerDate] = useState<string | null>(null)
   const [regenerating, startRegenerate] = useTransition()
+  const [copied, setCopied] = useState(false)
 
   // PT summary state
   const [ptExpanded, setPtExpanded] = useState(false)
@@ -83,22 +95,51 @@ export default function WeekClient({
   const [ptLoading, setPtLoading] = useState(false)
   const [ptCopied, setPtCopied] = useState(false)
 
+  // Derive week data from view state
+  const viewWeekEnd = addDays(viewWeekStart, 6)
+  const weekPlan = plan.filter(e => e.date >= viewWeekStart && e.date <= viewWeekEnd)
+  const weekLog = log.filter(e => e.date >= viewWeekStart && e.date <= viewWeekEnd)
+  const weekHealth = health.filter(e => e.date >= viewWeekStart && e.date <= viewWeekEnd)
+  const weekStrava = strava.filter(a => a.date >= viewWeekStart && a.date <= viewWeekEnd)
+  const weekNum = weekPlan[0]?.week ?? 0
+  const currentPhase = phases.find(p => p.startDate <= viewWeekStart && p.endDate >= viewWeekEnd)
+    ?? phases.find(p => p.startDate <= viewWeekStart && p.endDate >= viewWeekStart)
+    ?? null
+  const review = weekReviews[viewWeekStart] ?? null
+
+  // Week navigation bounds from plan dates
+  const planDates = plan.map(e => e.date).sort()
+  const minWeekStart = planDates.length ? getWeekMonday(planDates[0]) : viewWeekStart
+  const maxWeekStart = planDates.length ? getWeekMonday(planDates[planDates.length - 1]) : viewWeekStart
+  const isCurrentWeek = viewWeekStart === initialWeekStart
+
   const plannedMiles = weekPlan.reduce((s, e) => s + (e.distance ?? 0), 0)
   const actualMiles = weekLog.reduce((s, e) => s + (e.distance ?? 0), 0)
   const pct = plannedMiles > 0 ? Math.min(100, Math.round((actualMiles / plannedMiles) * 100)) : 0
+
+  async function navigateWeek(newStart: string) {
+    if (newStart < minWeekStart || newStart > maxWeekStart) return
+    setViewWeekStart(newStart)
+    if (!(newStart in weekReviews)) {
+      // Load cached review for the target week without blocking navigation
+      fetchWeekReviewForWeek(newStart).then(r =>
+        setWeekReviews(prev => ({ ...prev, [newStart]: r }))
+      )
+    }
+  }
+
+  function handleRegenerate() {
+    startRegenerate(async () => {
+      const fresh = await regenerateWeekReview(viewWeekStart)
+      if (fresh) setWeekReviews(prev => ({ ...prev, [viewWeekStart]: fresh }))
+    })
+  }
 
   function handleCopy() {
     if (!review?.ptSummary) return
     navigator.clipboard.writeText(review.ptSummary).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  function handleRegenerate() {
-    startRegenerate(async () => {
-      const fresh = await regenerateWeekReview(weekStart)
-      if (fresh) setReview(fresh)
     })
   }
 
@@ -124,11 +165,39 @@ export default function WeekClient({
   return (
     <div className="px-4 pt-10 pb-4">
       <header className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">Week {weekNum}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {fmt(weekStart)} – {fmt(weekEnd)}
-          {currentPhase && ` · ${currentPhase.name}`}
-        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigateWeek(addDays(viewWeekStart, -7))}
+            disabled={viewWeekStart <= minWeekStart}
+            className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 touch-manipulation"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <div className="flex-1 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {weekNum > 0 ? `Week ${weekNum}` : fmt(viewWeekStart) + ' week'}
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {fmt(viewWeekStart)} – {fmt(viewWeekEnd)}
+              {currentPhase && ` · ${currentPhase.name}`}
+            </p>
+          </div>
+          <button
+            onClick={() => navigateWeek(addDays(viewWeekStart, 7))}
+            disabled={viewWeekStart >= maxWeekStart}
+            className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 touch-manipulation"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+        {!isCurrentWeek && (
+          <button
+            onClick={() => navigateWeek(initialWeekStart)}
+            className="mt-1 w-full text-xs text-blue-500 hover:text-blue-700 text-center"
+          >
+            Back to this week
+          </button>
+        )}
       </header>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
@@ -158,7 +227,7 @@ export default function WeekClient({
               className={`bg-white rounded-2xl border shadow-sm p-3 ${isToday ? 'border-blue-200' : 'border-gray-100'}`}
             >
               <button
-                className="w-full text-left"
+                className="w-full text-left touch-manipulation"
                 onClick={() => setDrawerDate(entry.date)}
               >
                 <div className="flex items-center gap-3">
@@ -189,17 +258,16 @@ export default function WeekClient({
                 {dayLogs.length > 0 && <ZoneBar logs={dayLogs} />}
               </button>
 
-              {/* Individual activity rows */}
               {dayLogs.length > 0 && (
                 <div className="mt-2 pl-11 flex flex-col gap-1">
                   {dayLogs.map((log, i) => {
-                    const act = log.stravaId ? stravaActivities.find(a => a.activityId === log.stravaId) : null
+                    const act = log.stravaId ? weekStrava.find(a => a.activityId === log.stravaId) : null
                     const name = act?.name ?? log.activityType
                     return (
                       <button
                         key={i}
                         onClick={e => { e.stopPropagation(); setSelected(log) }}
-                        className="text-left flex items-center gap-2 py-0.5"
+                        className="text-left flex items-center gap-2 py-0.5 touch-manipulation"
                       >
                         <span className="text-xs text-blue-600 underline font-medium truncate">{name}</span>
                         {log.distance && (
@@ -216,6 +284,10 @@ export default function WeekClient({
             </div>
           )
         })}
+
+        {weekPlan.length === 0 && (
+          <div className="text-center text-gray-400 text-sm py-8">No plan data for this week</div>
+        )}
       </div>
 
       {/* Week in Review */}
@@ -226,7 +298,7 @@ export default function WeekClient({
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
-            className="ml-auto text-blue-400 hover:text-blue-600 disabled:opacity-40"
+            className="ml-auto text-blue-400 hover:text-blue-600 disabled:opacity-40 touch-manipulation"
           >
             <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
           </button>
@@ -234,9 +306,21 @@ export default function WeekClient({
         {regenerating ? (
           <p className="text-sm text-gray-400 italic">Generating...</p>
         ) : review ? (
-          <div className="prose prose-sm prose-gray max-w-none">
-            <ReactMarkdown>{review.summary}</ReactMarkdown>
-          </div>
+          <>
+            <div className="prose prose-sm prose-gray max-w-none">
+              <ReactMarkdown>{review.summary}</ReactMarkdown>
+            </div>
+            {review.ptSummary && (
+              <button
+                onClick={handleCopy}
+                className={`mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-colors ${
+                  copied ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white'
+                }`}
+              >
+                {copied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy PT summary</>}
+              </button>
+            )}
+          </>
         ) : (
           <p className="text-sm text-gray-400 italic">
             Tap ↻ to generate this week&apos;s review.
@@ -247,7 +331,7 @@ export default function WeekClient({
       {/* PT Summary — on-demand with date range */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <button
-          className="w-full flex items-center gap-2"
+          className="w-full flex items-center gap-2 touch-manipulation"
           onClick={() => setPtExpanded(v => !v)}
         >
           <FileText size={14} className="text-gray-400" />
@@ -281,7 +365,7 @@ export default function WeekClient({
             <button
               onClick={handleGeneratePT}
               disabled={ptLoading}
-              className="w-full bg-gray-800 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
+              className="w-full bg-gray-800 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40 touch-manipulation"
             >
               {ptLoading ? 'Generating...' : 'Generate PT Summary'}
             </button>
@@ -308,7 +392,7 @@ export default function WeekClient({
       {selected && (
         <ActivityDrawer
           log={selected}
-          stravaActivities={stravaActivities}
+          stravaActivities={strava}
           onClose={() => setSelected(null)}
         />
       )}
@@ -319,7 +403,7 @@ export default function WeekClient({
           plan={drawerEntry}
           logs={drawerLogs}
           health={drawerHealth}
-          stravaActivities={stravaActivities}
+          stravaActivities={weekStrava}
           onClose={() => setDrawerDate(null)}
         />
       )}
