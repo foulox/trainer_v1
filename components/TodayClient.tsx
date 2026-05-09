@@ -422,13 +422,6 @@ export default function TodayClient({
           <p className="text-sm text-gray-400 italic">Generating...</p>
         ) : note ? (
           <div className="space-y-3">
-            {/* Verdict — always visible */}
-            {note.verdict && (
-              <div className="text-sm font-semibold text-slate-800 leading-snug prose prose-sm prose-slate max-w-none [&_p]:mb-0 [&_p]:font-semibold [&_p]:text-sm [&_p]:leading-snug">
-                <ReactMarkdown>{note.verdict}</ReactMarkdown>
-              </div>
-            )}
-
             {/* Readiness section */}
             <div className="border-t border-slate-200 pt-2">
               <button
@@ -441,7 +434,7 @@ export default function TodayClient({
                 </div>
                 {readinessExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
               </button>
-              {note.readinessSummary && !readinessExpanded && (
+              {note.readinessSummary && (
                 <p className="text-xs text-slate-600 mt-1 leading-snug">{note.readinessSummary}</p>
               )}
               {readinessExpanded && (
@@ -465,7 +458,7 @@ export default function TodayClient({
                 </div>
                 {workoutContextExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
               </button>
-              {note.workoutSummary && !workoutContextExpanded && (
+              {note.workoutSummary && (
                 <p className="text-xs text-slate-600 mt-1 leading-snug">{note.workoutSummary}</p>
               )}
               {workoutContextExpanded && (
