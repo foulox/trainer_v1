@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
-import { generateCoachingNote, generatePostWorkoutNote, generatePTSummaryForRange, generateWeekReview, sendCheckInMessage } from '@/lib/ai'
+import { generateCoachingNote, generateRestDayNote, generatePostWorkoutNote, generatePTSummaryForRange, generateWeekReview, sendCheckInMessage } from '@/lib/ai'
 import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview } from '@/lib/kv'
 import type { CoachingNote, WeekReview, CheckInMessage } from '@/lib/data'
 
@@ -17,16 +17,21 @@ export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNo
       fetchTrainingLog(),
     ])
     const workout = plan.find(e => e.date === date)
-    if (!workout || workout.dayType === 'Rest') return null
+    if (!workout) return null
 
     const phase = phases.find(p => p.startDate <= date && p.endDate >= date)
     const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
     const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
-    const checkIn = await getCheckIn(date).catch(() => null)
 
-    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
+    let note: CoachingNote
+    if (workout.dayType === 'Rest') {
+      note = await generateRestDayNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
+    } else {
+      const checkIn = await getCheckIn(date).catch(() => null)
+      note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
+    }
     await setCoachingNote(note)
     return note
   } catch {
@@ -43,16 +48,21 @@ export async function regenerateCoachingNote(date: string): Promise<CoachingNote
     ])
 
     const workout = plan.find(e => e.date === date)
-    if (!workout || workout.dayType === 'Rest') return null
+    if (!workout) return null
 
     const phase = phases.find(p => p.startDate <= date && p.endDate >= date)
     const nextRace = races.filter(r => r.date >= date).sort((a, b) => a.date.localeCompare(b.date))[0]
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
     const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
-    const checkIn = await getCheckIn(date).catch(() => null)
 
-    const note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
+    let note: CoachingNote
+    if (workout.dayType === 'Rest') {
+      note = await generateRestDayNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth)
+    } else {
+      const checkIn = await getCheckIn(date).catch(() => null)
+      note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
+    }
     await setCoachingNote(note)
     return note
   } catch {

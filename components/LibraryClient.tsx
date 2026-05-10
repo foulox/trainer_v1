@@ -471,6 +471,7 @@ export default function LibraryClient({ library }: Props) {
   const [search, setSearch] = useState('')
   const [activeSport, setActiveSport] = useState('Run')
   const [activeCategory, setActiveCategory] = useState('All')
+  const [activeQualityType, setActiveQualityType] = useState('All')
   const [activeRaceType, setActiveRaceType] = useState('All')
   const [showAbbrev, setShowAbbrev] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -482,10 +483,19 @@ export default function LibraryClient({ library }: Props) {
     return ['All', ...Array.from(new Set(base.map(w => w.category).filter(Boolean))).sort()]
   }, [library, activeSport])
 
+  const qualityTypes = useMemo(() => {
+    if (activeCategory !== 'Quality') return []
+    const base = activeSport === 'All' ? library : library.filter(w => w.sport === activeSport)
+    return Array.from(new Set(
+      base.filter(w => w.category === 'Quality').map(w => w.type).filter(Boolean)
+    )).sort()
+  }, [library, activeSport, activeCategory])
+
   const filtered = useMemo(() => {
     return library.filter(w => {
       if (activeSport !== 'All' && w.sport !== activeSport) return false
       if (activeCategory !== 'All' && w.category !== activeCategory) return false
+      if (activeQualityType !== 'All' && w.type !== activeQualityType) return false
       if (activeRaceType !== 'All' && !w.raceTypes.includes(activeRaceType)) return false
       if (search) {
         const q = search.toLowerCase()
@@ -493,7 +503,7 @@ export default function LibraryClient({ library }: Props) {
       }
       return true
     })
-  }, [library, activeSport, activeCategory, activeRaceType, search])
+  }, [library, activeSport, activeCategory, activeQualityType, activeRaceType, search])
 
   return (
     <div className="flex flex-col h-full">
@@ -538,7 +548,7 @@ export default function LibraryClient({ library }: Props) {
         {/* Sport filter */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {['All', ...SPORTS].map(s => (
-            <button key={s} onClick={() => { setActiveSport(s); setActiveCategory('All') }}
+            <button key={s} onClick={() => { setActiveSport(s); setActiveCategory('All'); setActiveQualityType('All') }}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors touch-manipulation ${activeSport === s ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
               {s}
             </button>
@@ -549,9 +559,21 @@ export default function LibraryClient({ library }: Props) {
         {categories.length > 2 && (
           <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-none">
             {categories.map(c => (
-              <button key={c} onClick={() => setActiveCategory(c)}
+              <button key={c} onClick={() => { setActiveCategory(c); setActiveQualityType('All') }}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors touch-manipulation ${activeCategory === c ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'}`}>
                 {c}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Quality type filter — shown when Quality category is selected */}
+        {activeCategory === 'Quality' && qualityTypes.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-none">
+            {['All', ...qualityTypes].map(t => (
+              <button key={t} onClick={() => setActiveQualityType(t)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors touch-manipulation ${activeQualityType === t ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                {t === 'All' ? 'All types' : t}
               </button>
             ))}
           </div>

@@ -80,6 +80,72 @@ Reference specific numbers. No tables. No filler.`,
   }
 }
 
+export async function generateRestDayNote(
+  workout: PlannedWorkout,
+  phase: Phase | undefined,
+  nextRace: Race | undefined,
+  recentLog: TrainingLogEntry[],
+  todayHealth: HealthEntry | undefined,
+  recentHealth?: HealthEntry[],
+): Promise<CoachingNote> {
+  const context = buildRestDayContext(workout, phase, nextRace, recentLog, todayHealth, recentHealth)
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1500,
+    system: SYSTEM_PROMPT,
+    messages: [{
+      role: 'user',
+      content: `Analyze this athlete's recovery status on their rest day.
+
+${context}
+
+Format your response EXACTLY as follows:
+
+VERDICT: [One sentence. State a specific data point (HRV, sleep, recent load) and give a clear observation about recovery status. E.g. "HRV up 8ms from baseline — the training load from this week is absorbing well."]
+
+READINESS_SCORE: [integer 1-10, where 1=depleted and 10=fully recovered/peak]
+EFFORT_MODE: rest
+EFFORT_LABEL: [≤5 words: e.g. "Full rest today" / "Easy walk only" / "Active recovery fine"]
+EFFORT_REASON: [≤8 words: key recovery signal driving the call]
+
+## Readiness
+SUMMARY: [One line — recovery status in one phrase]
+- HRV today vs 7-day avg with trend direction
+- Sleep score and quality assessment
+- RHR observation
+- Overall: absorbing well / needs more recovery / watch closely
+
+## Today's Workout in Context
+SUMMARY: [One line — what the body is doing on this rest day]
+- Physiological processes happening during rest (glycogen, muscle repair, nervous system)
+- How this fits the recent training load pattern
+- What this rest supports in the current phase and race build
+- One actionable note for today (hydration, sleep, nutrition, or easy movement)
+
+Reference specific numbers. No filler.`,
+    }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text : ''
+  const parsed = parseCoachingResponse(text)
+
+  return {
+    date: workout.date,
+    generatedAt: new Date().toISOString(),
+    workoutPurpose: 'Rest day — recovery and adaptation',
+    coachingTake: parsed.body,
+    verdict: parsed.verdict,
+    readinessSummary: parsed.readinessSummary,
+    workoutSummary: parsed.workoutSummary,
+    readinessScore: parsed.readinessScore,
+    effortMode: parsed.effortMode ?? 'rest',
+    effortLabel: parsed.effortLabel,
+    effortReason: parsed.effortReason,
+    type: 'pre',
+  }
+}
+
 export async function generatePostWorkoutNote(
   workout: PlannedWorkout,
   phase: Phase | undefined,
@@ -410,6 +476,38 @@ function buildPostWorkoutContext(
       const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
         .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
       return `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi | ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'}`
+    }),
+  ]
+  return lines.filter(Boolean).join('\n')
+}
+
+function buildRestDayContext(
+  workout: PlannedWorkout,
+  phase: Phase | undefined,
+  nextRace: Race | undefined,
+  recentLog: TrainingLogEntry[],
+  health: HealthEntry | undefined,
+  recentHealth?: HealthEntry[],
+): string {
+  const hrvValues = (recentHealth ?? []).filter(h => h.hrv).map(h => h.hrv!)
+  const hrvAvg7 = hrvValues.length
+    ? (hrvValues.reduce((s, v) => s + v, 0) / hrvValues.length).toFixed(1)
+    : null
+  const wip = phase ? weekInPhase(workout.date, phase) : null
+
+  const lines = [
+    `TODAY: REST DAY — ${workout.date}`,
+    '',
+    phase ? `CURRENT PHASE: ${phase.name} (Week ${wip} of ${phase.weeks}) — ${phase.goal}` : 'CURRENT PHASE: —',
+    nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — Grade ${nextRace.grade}` : '',
+    '',
+    `TODAY'S HEALTH: HRV ${health?.hrv != null ? Math.round(health.hrv) : '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/1000`,
+    '',
+    'RECENT TRAINING (last 7 days):',
+    ...recentLog.slice(0, 7).map(e => {
+      const zones = [e.zone1, e.zone2, e.zone3, e.zone4, e.zone5]
+        .map((z, i) => z ? `Z${i+1}:${z}m` : '').filter(Boolean).join(' ')
+      return `  ${e.date}: ${e.activityType} ${e.distance ?? '—'} mi in ${e.duration ?? '—'} min | HR ${e.avgHr ?? '—'} | RPE ${e.rpe ?? '—'} | ${zones || 'no zones'}`
     }),
   ]
   return lines.filter(Boolean).join('\n')

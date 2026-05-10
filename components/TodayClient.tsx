@@ -305,7 +305,7 @@ export default function TodayClient({
         </div>
       )}
 
-      {(viewHealth || isViewingToday) && (
+      {(viewHealth || isViewingToday) && note?.readinessScore == null && (
         <div className="mb-4">
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
@@ -377,9 +377,20 @@ export default function TodayClient({
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-gray-400 tracking-wide uppercase">Readiness</span>
-              <span className={`text-sm font-bold ${readinessScoreColor(note.readinessScore)}`}>
-                {note.readinessScore}/10
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${readinessScoreColor(note.readinessScore)}`}>
+                  {note.readinessScore}/10
+                </span>
+                {displayEntry && displayEntry.date === viewDate && (
+                  <button
+                    onClick={e => { e.stopPropagation(); handleRegenerate() }}
+                    disabled={regenerating || noteLoading}
+                    className="text-gray-300 hover:text-gray-500 disabled:opacity-40 touch-manipulation"
+                  >
+                    <RefreshCw size={12} className={regenerating ? 'animate-spin' : ''} />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="relative h-2 rounded-full bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 mb-2.5">
               <div
@@ -392,10 +403,61 @@ export default function TodayClient({
             )}
           </button>
           {readinessBarExpanded && (
-            <div className="px-4 pb-4 prose prose-sm prose-slate max-w-none border-t border-gray-50 pt-3">
-              <ReactMarkdown>
-                {note.coachingTake.match(/## Readiness([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? note.readinessSummary ?? ''}
-              </ReactMarkdown>
+            <div className="border-t border-gray-50 pt-3 pb-4 px-4">
+              {/* HRV/Sleep/RHR tiles folded in here */}
+              {(viewHealth || isViewingToday) && (
+                <div className="mb-3">
+                  <div className="grid grid-cols-3 gap-2 mb-1.5">
+                    <div className="bg-gray-50 rounded-xl border border-gray-100 p-3 text-center">
+                      <Zap size={14} className={`mx-auto mb-1 ${hrvColor(viewHealth?.hrv ?? null)}`} />
+                      <div className={`text-lg font-bold ${hrvColor(viewHealth?.hrv ?? null)}`}>
+                        {viewHealth?.hrv != null ? Math.round(viewHealth.hrv) : '—'}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">HRV ms</div>
+                      {hrv7dayAvg && <div className="text-xs text-gray-300 mt-0.5">{hrv7dayAvg} avg</div>}
+                    </div>
+                    <button
+                      className="bg-gray-50 rounded-xl border border-gray-100 p-3 text-center w-full"
+                      onClick={() => { setSleepInput(String(sleepScore ?? '')); setEditingSleep(true) }}
+                    >
+                      <Moon size={14} className="mx-auto mb-1 text-indigo-400" />
+                      {editingSleep ? (
+                        <input type="number" min={0} max={1000} value={sleepInput} autoFocus
+                          className="text-lg font-bold text-gray-900 w-full text-center bg-transparent outline-none"
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => setSleepInput(e.target.value)}
+                          onBlur={async () => {
+                            setEditingSleep(false)
+                            const val = parseInt(sleepInput)
+                            if (!isNaN(val) && val >= 0 && val <= 1000) { setSleepScore(val); await saveSleepScore(viewDate, val) }
+                          }}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                        />
+                      ) : (
+                        <div className="text-lg font-bold text-gray-900">{sleepScore ?? '—'}</div>
+                      )}
+                      <div className="text-xs text-gray-400 mt-0.5">Sleep {sleepScore == null ? '· tap' : '/1000'}</div>
+                    </button>
+                    <div className="bg-gray-50 rounded-xl border border-gray-100 p-3 text-center">
+                      <Heart size={14} className="mx-auto mb-1 text-red-400" />
+                      <div className="text-lg font-bold text-gray-900">{viewHealth?.restingHr ?? '—'}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">RHR bpm</div>
+                    </div>
+                  </div>
+                  {isViewingToday && (
+                    <button onClick={handleRefreshHealth} disabled={refreshingHealth}
+                      className="w-full text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 flex items-center justify-center gap-1">
+                      <RefreshCw size={11} className={refreshingHealth ? 'animate-spin' : ''} />
+                      {refreshingHealth ? 'Refreshing…' : 'Refresh health data'}
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="prose prose-sm prose-slate max-w-none">
+                <ReactMarkdown>
+                  {note.coachingTake.match(/## Readiness([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? note.readinessSummary ?? ''}
+                </ReactMarkdown>
+              </div>
             </div>
           )}
 
@@ -436,6 +498,9 @@ export default function TodayClient({
           <div className="text-xl font-bold text-gray-900">Rest Day</div>
           {viewPhase && (
             <div className="text-sm text-gray-500 mt-1">{viewPhase.name} · {viewPhase.goal}</div>
+          )}
+          {note?.verdict && (
+            <p className="text-sm text-gray-500 mt-2 italic leading-snug">{note.verdict}</p>
           )}
         </div>
       ) : displayEntry ? (
@@ -511,8 +576,8 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Pre-workout coaching card */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
+      {/* Pre-workout coaching card — hidden when visual readiness card is active */}
+      {note?.readinessScore == null && <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
           <Radio size={14} className="text-slate-500" />
           <div className="text-xs font-bold text-slate-600 tracking-wide">The Signal</div>
@@ -587,7 +652,7 @@ export default function TodayClient({
               : 'No workout planned — no analysis needed.'}
           </p>
         )}
-      </div>
+      </div>}
 
       {/* Post-workout coaching card — shown when activities are logged */}
       {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (

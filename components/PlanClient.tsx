@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Flag, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react'
 import type { PlannedWorkout, Phase, Race, LibraryWorkout } from '@/lib/data'
+import { RACE_TYPES } from '@/lib/data'
 import { createPhase, updatePhase, deletePhase, savePlanDay, setupPhaseDays, addRace, updateRace, deleteRace, applyWorkoutToWeekday } from '@/app/actions'
 
 // ── Formatting helpers ────────────────────────────────────────
@@ -138,6 +139,7 @@ function DayEditor({
   const [showPicker, setShowPicker] = useState(false)
   const [filterType, setFilterType] = useState<string>('')
   const [filterSubType, setFilterSubType] = useState<string>('')
+  const [filterRaceType, setFilterRaceType] = useState<string>('')
   const [expandedVariation, setExpandedVariation] = useState<string | null>(null)
 
   const sportFiltered = useMemo(() => library.filter(w => {
@@ -150,9 +152,10 @@ function DayEditor({
     return sportFiltered.filter(w => {
       if (filterType && w.category !== filterType) return false
       if (filterSubType && w.type !== filterSubType) return false
+      if (filterRaceType && !w.raceTypes.includes(filterRaceType)) return false
       return true
     })
-  }, [sportFiltered, filterType, filterSubType])
+  }, [sportFiltered, filterType, filterSubType, filterRaceType])
 
   // Standalone workouts (no variation family) + one representative per variation family
   const pickerRows = useMemo(() => {
@@ -288,6 +291,19 @@ function DayEditor({
                       ))}
                     </div>
                   )}
+                  {/* Race type filter row */}
+                  <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-50 border-b border-gray-100">
+                    <button onClick={() => setFilterRaceType('')}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 ${filterRaceType === '' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                      Any race
+                    </button>
+                    {RACE_TYPES.map(r => (
+                      <button key={r} onClick={() => setFilterRaceType(r)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 ${filterRaceType === r ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
                   {/* Workout list */}
                   <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
                     {pickerRows.length === 0 ? (
