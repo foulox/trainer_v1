@@ -100,30 +100,36 @@ export async function generateRestDayNote(
 
 ${context}
 
+RULES FOR THIS RESPONSE:
+- This is a REST DAY. The athlete is NOT training today. Do NOT give any running or workout advice.
+- EFFORT_MODE must be exactly the word: rest
+- If today is Sunday (end of training week), frame the response as a week-in-review: what the week added up to, what worked, what the body absorbed.
+- If today is mid-week rest, focus on recovery from recent load and what this rest sets up.
+
 Format your response EXACTLY as follows:
 
-VERDICT: [One sentence. State a specific data point (HRV, sleep, recent load) and give a clear observation about recovery status. E.g. "HRV up 8ms from baseline — the training load from this week is absorbing well."]
+VERDICT: [One sentence. State a specific data point (HRV, sleep, or week total) and give a clear observation about recovery status. No running advice. E.g. "HRV up 8ms from baseline — this week's load is absorbing well going into race week."]
 
 READINESS_SCORE: [integer 1-10, where 1=depleted and 10=fully recovered/peak]
 EFFORT_MODE: rest
-EFFORT_LABEL: [≤5 words: e.g. "Full rest today" / "Easy walk only" / "Active recovery fine"]
-EFFORT_REASON: [≤8 words: key recovery signal driving the call]
+EFFORT_LABEL: [≤5 words about recovery, NOT running. E.g. "Full rest today" / "Body absorbing load" / "Race week starts now"]
+EFFORT_REASON: [≤8 words: the key recovery signal]
 
 ## Readiness
-SUMMARY: [One line — recovery status in one phrase]
+SUMMARY: [One line — recovery status]
 - HRV today vs 7-day avg with trend direction
-- Sleep score and quality assessment
+- Sleep score assessment
 - RHR observation
-- Overall: absorbing well / needs more recovery / watch closely
+- Overall recovery verdict: absorbing well / needs more time / watch closely
 
 ## Today's Workout in Context
-SUMMARY: [One line — what the body is doing on this rest day]
-- Physiological processes happening during rest (glycogen, muscle repair, nervous system)
-- How this fits the recent training load pattern
-- What this rest supports in the current phase and race build
-- One actionable note for today (hydration, sleep, nutrition, or easy movement)
+SUMMARY: [One line — what the body is doing today and this week]
+- If end of week: week volume summary, key sessions completed, how the body responded
+- Physiological processes during rest (glycogen reloading, muscle repair, nervous system recovery)
+- What this rest day supports going into next week or the race
+- One non-running action item (sleep, nutrition, hydration, or mobility)
 
-Reference specific numbers. No filler.`,
+Reference specific numbers. No filler. No running advice.`,
     }],
   })
 
@@ -495,13 +501,48 @@ function buildRestDayContext(
     : null
   const wip = phase ? weekInPhase(workout.date, phase) : null
 
+  const date = new Date(workout.date + 'T00:00:00')
+  const dayOfWeek = date.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const isSunday = dayOfWeek === 0
+
+  // If Sunday, summarize Mon-Sat of this week from recentLog
+  let weekSummaryLines: string[] = []
+  if (isSunday) {
+    const weekEnd = new Date(date)
+    weekEnd.setDate(weekEnd.getDate() - 1) // Saturday
+    const weekStart = new Date(date)
+    weekStart.setDate(weekStart.getDate() - 6) // Monday
+    const weekStartStr = weekStart.toISOString().slice(0, 10)
+    const weekEndStr = weekEnd.toISOString().slice(0, 10)
+
+    const weekLog = recentLog.filter(e => e.date >= weekStartStr && e.date <= weekEndStr)
+    const runs = weekLog.filter(e => /run/i.test(e.activityType))
+    const bikes = weekLog.filter(e => /ride|bike|cycling/i.test(e.activityType))
+    const yoga = weekLog.filter(e => /yoga/i.test(e.activityType))
+    const gym = weekLog.filter(e => /weight|strength|gym|lift/i.test(e.activityType))
+    const totalRunMi = runs.reduce((s, e) => s + (e.distance ?? 0), 0)
+
+    weekSummaryLines = [
+      '',
+      `THIS WEEK (${weekStartStr} to ${weekEndStr}):`,
+      `  Running: ${totalRunMi.toFixed(1)} mi across ${runs.length} run${runs.length !== 1 ? 's' : ''}`,
+      bikes.length > 0 ? `  Bike rides: ${bikes.length}` : '',
+      yoga.length > 0 ? `  Yoga: ${yoga.length}x` : '',
+      gym.length > 0 ? `  Gym/strength: ${gym.length}x` : '',
+      `  Total training sessions: ${weekLog.length}`,
+    ]
+  }
+
   const lines = [
-    `TODAY: REST DAY — ${workout.date}`,
+    `TODAY: REST DAY — ${workout.date} (${dayNames[dayOfWeek]})`,
+    isSunday ? 'NOTE: Today is Sunday — end of the training week. Frame as a week-in-review.' : '',
     '',
     phase ? `CURRENT PHASE: ${phase.name} (Week ${wip} of ${phase.weeks}) — ${phase.goal}` : 'CURRENT PHASE: —',
     nextRace ? `TARGET RACE: ${nextRace.name} (${nextRace.distance}) on ${nextRace.date} — Grade ${nextRace.grade}` : '',
     '',
     `TODAY'S HEALTH: HRV ${health?.hrv != null ? Math.round(health.hrv) : '—'} ms${hrvAvg7 ? ` (7-day avg: ${hrvAvg7} ms)` : ''} | Resting HR ${health?.restingHr ?? '—'} bpm | Sleep Score ${health?.sleepScore ?? '—'}/1000`,
+    ...weekSummaryLines,
     '',
     'RECENT TRAINING (last 7 days):',
     ...recentLog.slice(0, 7).map(e => {
