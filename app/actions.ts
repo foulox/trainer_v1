@@ -32,7 +32,7 @@ export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNo
       const checkIn = await getCheckIn(date).catch(() => null)
       note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
     }
-    await setCoachingNote(note)
+    setCoachingNote(note).catch(() => {})
     return note
   } catch {
     return null
@@ -63,7 +63,7 @@ export async function regenerateCoachingNote(date: string): Promise<CoachingNote
       const checkIn = await getCheckIn(date).catch(() => null)
       note = await generateCoachingNote(workout, phase, nextRace, recentLog, dayHealth, recentHealth, checkIn)
     }
-    await setCoachingNote(note)
+    setCoachingNote(note).catch(() => {})
     return note
   } catch {
     return null

@@ -149,6 +149,7 @@ export default function TodayClient({
   const [selected, setSelected] = useState<TrainingLogEntry | null>(null)
   const [showCheckIn, setShowCheckIn] = useState(false)
   const [regenerating, startRegenerate] = useTransition()
+  const [regenerateError, setRegenerateError] = useState(false)
   const [reasonExpanded, setReasonExpanded] = useState(false)
   const [instructionsExpanded, setInstructionsExpanded] = useState(false)
   const [readinessExpanded, setReadinessExpanded] = useState(false)
@@ -229,9 +230,11 @@ export default function TodayClient({
   }
 
   function handleRegenerate() {
+    setRegenerateError(false)
     startRegenerate(async () => {
       const fresh = await regenerateCoachingNote(viewDate)
       if (fresh) setNote(fresh)
+      else setRegenerateError(true)
     })
   }
 
@@ -593,6 +596,9 @@ export default function TodayClient({
           )}
         </div>
 
+        {regenerateError && (
+          <p className="text-xs text-red-400 mb-2">Couldn&apos;t regenerate — try again</p>
+        )}
         {regenerating || noteLoading ? (
           <p className="text-sm text-gray-400 italic">Generating...</p>
         ) : note ? (
