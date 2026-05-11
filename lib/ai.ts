@@ -623,28 +623,28 @@ function parseCoachingResponse(text: string): {
   const workoutSummaryMatch = text.match(/## Today's Workout in Context\nSUMMARY:\s*(.+)/m)
   const workoutSummary = workoutSummaryMatch ? workoutSummaryMatch[1].trim() : ''
 
-  const scoreMatch = text.match(/^READINESS_SCORE:\s*(\d+)/m)
+  const scoreMatch = text.match(/READINESS_SCORE:\s*\*{0,2}(\d+)/m)
   const readinessScore = scoreMatch ? Math.min(10, Math.max(1, parseInt(scoreMatch[1]))) : undefined
 
-  const modeMatch = text.match(/^EFFORT_MODE:\s*(\w+)/m)
+  const modeMatch = text.match(/EFFORT_MODE:\s*\*{0,2}(\w+)/m)
   const rawMode = modeMatch ? modeMatch[1].toLowerCase() : ''
   const effortMode = (['rest', 'easy', 'moderate', 'hard', 'race'] as const).includes(rawMode as never)
     ? rawMode as 'rest' | 'easy' | 'moderate' | 'hard' | 'race'
     : undefined
 
-  const effortLabelMatch = text.match(/^EFFORT_LABEL:\s*(.+)/m)
-  const effortLabel = effortLabelMatch ? effortLabelMatch[1].trim() : undefined
+  const effortLabelMatch = text.match(/EFFORT_LABEL:\s*\*{0,2}(.+)/m)
+  const effortLabel = effortLabelMatch ? effortLabelMatch[1].replace(/\*+$/, '').trim() : undefined
 
-  const effortReasonMatch = text.match(/^EFFORT_REASON:\s*(.+)/m)
-  const effortReason = effortReasonMatch ? effortReasonMatch[1].trim() : undefined
+  const effortReasonMatch = text.match(/EFFORT_REASON:\s*\*{0,2}(.+)/m)
+  const effortReason = effortReasonMatch ? effortReasonMatch[1].replace(/\*+$/, '').trim() : undefined
 
   const afterVerdict = text.replace(/^VERDICT:.+\n?/m, '').trim()
   const body = afterVerdict
     .replace(/^SUMMARY:.+\n?/gm, '')
-    .replace(/^READINESS_SCORE:.+\n?/gm, '')
-    .replace(/^EFFORT_MODE:.+\n?/gm, '')
-    .replace(/^EFFORT_LABEL:.+\n?/gm, '')
-    .replace(/^EFFORT_REASON:.+\n?/gm, '')
+    .replace(/^[\*_]*READINESS_SCORE:.+\n?/gm, '')
+    .replace(/^[\*_]*EFFORT_MODE:.+\n?/gm, '')
+    .replace(/^[\*_]*EFFORT_LABEL:.+\n?/gm, '')
+    .replace(/^[\*_]*EFFORT_REASON:.+\n?/gm, '')
     .trim()
 
   return { verdict, readinessSummary, workoutSummary, body, readinessScore, effortMode, effortLabel, effortReason }
