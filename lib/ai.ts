@@ -623,10 +623,10 @@ function parseCoachingResponse(text: string): {
   const workoutSummaryMatch = text.match(/## Today's Workout in Context\nSUMMARY:\s*(.+)/m)
   const workoutSummary = workoutSummaryMatch ? workoutSummaryMatch[1].trim() : ''
 
-  const scoreMatch = text.match(/READINESS_SCORE:\s*\*{0,2}(\d+)/m)
+  const scoreMatch = text.match(/READINESS_SCORE:\s*\*{0,2}\s*(\d+)/m)
   const readinessScore = scoreMatch ? Math.min(10, Math.max(1, parseInt(scoreMatch[1]))) : undefined
 
-  const modeMatch = text.match(/EFFORT_MODE:\s*\*{0,2}(\w+)/m)
+  const modeMatch = text.match(/EFFORT_MODE:\s*\*{0,2}\s*(\w+)/m)
   const rawMode = modeMatch ? modeMatch[1].toLowerCase() : ''
   const effortMode = (['rest', 'easy', 'moderate', 'hard', 'race'] as const).includes(rawMode as never)
     ? rawMode as 'rest' | 'easy' | 'moderate' | 'hard' | 'race'

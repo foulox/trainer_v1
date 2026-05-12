@@ -233,7 +233,6 @@ export default function TodayClient({
     setRegenerateError(false)
     startRegenerate(async () => {
       const fresh = await regenerateCoachingNote(viewDate)
-      console.log('[signal] fresh note:', JSON.stringify(fresh))
       if (fresh) setNote(fresh)
       else setRegenerateError(true)
     })
