@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Zap, Moon, Heart, Brain } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from '@/components/Markdown'
 import type { PlannedWorkout, TrainingLogEntry, HealthEntry, StravaActivity, CoachingNote } from '@/lib/data'
 import { fetchCoachingNoteForDate } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'

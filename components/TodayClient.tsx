@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 import CheckInDrawer from './CheckInDrawer'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from '@/components/Markdown'
 
 const ZONE_COLORS = ['bg-gray-300', 'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-red-400']
 const ZONE_LABELS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']

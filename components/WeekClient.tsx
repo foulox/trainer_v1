@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Copy, Check, Brain, RefreshCw, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from '@/components/Markdown'
 import type { PlannedWorkout, TrainingLogEntry, HealthEntry, WeekReview, Phase, StravaActivity } from '@/lib/data'
 import { regenerateWeekReview, fetchWeekReviewForWeek, generatePTSummaryAction } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
