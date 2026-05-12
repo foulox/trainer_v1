@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { PlannedWorkout, Phase, Race, TrainingLogEntry, HealthEntry, CoachingNote, WeekReview, CheckInMessage, CheckIn } from './data'
 import { ATHLETE_CONTEXT } from './athlete-context'
+import { parseCoachingResponse } from './parse-coaching'
 
 const client = new Anthropic()
 
@@ -33,6 +34,8 @@ export async function generateCoachingNote(
       content: `Analyze this athlete's readiness and training context for today's pre-workout briefing.
 
 ${context}
+
+Output the structured fields (VERDICT, READINESS_SCORE, EFFORT_MODE, EFFORT_LABEL, EFFORT_REASON, and SUMMARY lines) as plain text — no bold, no asterisks on field names or values.
 
 Format your response EXACTLY as follows:
 
@@ -105,6 +108,8 @@ RULES FOR THIS RESPONSE:
 - EFFORT_MODE must be exactly the word: rest
 - If today is Sunday (end of training week), frame the response as a week-in-review: what the week added up to, what worked, what the body absorbed.
 - If today is mid-week rest, focus on recovery from recent load and what this rest sets up.
+
+Output the structured fields (VERDICT, READINESS_SCORE, EFFORT_MODE, EFFORT_LABEL, EFFORT_REASON, and SUMMARY lines) as plain text — no bold, no asterisks on field names or values.
 
 Format your response EXACTLY as follows:
 
@@ -604,48 +609,3 @@ function buildWeekContext(
   return lines.filter(Boolean).join('\n')
 }
 
-function parseCoachingResponse(text: string): {
-  verdict: string
-  readinessSummary: string
-  workoutSummary: string
-  body: string
-  readinessScore: number | undefined
-  effortMode: 'rest' | 'easy' | 'moderate' | 'hard' | 'race' | undefined
-  effortLabel: string | undefined
-  effortReason: string | undefined
-} {
-  const verdictMatch = text.match(/^VERDICT:\s*(.+)/m)
-  const verdict = verdictMatch ? verdictMatch[1].trim() : ''
-
-  const readinessSummaryMatch = text.match(/## Readiness\nSUMMARY:\s*(.+)/m)
-  const readinessSummary = readinessSummaryMatch ? readinessSummaryMatch[1].trim() : ''
-
-  const workoutSummaryMatch = text.match(/## Today's Workout in Context\nSUMMARY:\s*(.+)/m)
-  const workoutSummary = workoutSummaryMatch ? workoutSummaryMatch[1].trim() : ''
-
-  const scoreMatch = text.match(/READINESS_SCORE:\s*\*{0,2}\s*(\d+)/m)
-  const readinessScore = scoreMatch ? Math.min(10, Math.max(1, parseInt(scoreMatch[1]))) : undefined
-
-  const modeMatch = text.match(/EFFORT_MODE:\s*\*{0,2}\s*(\w+)/m)
-  const rawMode = modeMatch ? modeMatch[1].toLowerCase() : ''
-  const effortMode = (['rest', 'easy', 'moderate', 'hard', 'race'] as const).includes(rawMode as never)
-    ? rawMode as 'rest' | 'easy' | 'moderate' | 'hard' | 'race'
-    : undefined
-
-  const effortLabelMatch = text.match(/EFFORT_LABEL:\s*\*{0,2}(.+)/m)
-  const effortLabel = effortLabelMatch ? effortLabelMatch[1].replace(/\*+$/, '').trim() : undefined
-
-  const effortReasonMatch = text.match(/EFFORT_REASON:\s*\*{0,2}(.+)/m)
-  const effortReason = effortReasonMatch ? effortReasonMatch[1].replace(/\*+$/, '').trim() : undefined
-
-  const afterVerdict = text.replace(/^VERDICT:.+\n?/m, '').trim()
-  const body = afterVerdict
-    .replace(/^SUMMARY:.+\n?/gm, '')
-    .replace(/^[\*_]*READINESS_SCORE:.+\n?/gm, '')
-    .replace(/^[\*_]*EFFORT_MODE:.+\n?/gm, '')
-    .replace(/^[\*_]*EFFORT_LABEL:.+\n?/gm, '')
-    .replace(/^[\*_]*EFFORT_REASON:.+\n?/gm, '')
-    .trim()
-
-  return { verdict, readinessSummary, workoutSummary, body, readinessScore, effortMode, effortLabel, effortReason }
-}
