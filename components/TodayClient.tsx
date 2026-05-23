@@ -948,8 +948,8 @@ export default function TodayClient({
         )}
       </div>}
 
-      {/* Immediate post-run recovery prompt (#12) */}
-      {isPostRun && !recoveryDismissed && (
+      {/* Immediate post-run recovery prompt (#12) — morning only */}
+      {isPostRun && !recoveryDismissed && !isAfternoon && (
         <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-4">
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-xs font-bold text-emerald-700 tracking-wide">RIGHT NOW</span>
@@ -983,7 +983,7 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Post-workout coaching card — shown when activities are logged */}
+      {/* Post-workout coaching card — collapsed by default, expands on tap */}
       {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
@@ -1001,55 +1001,24 @@ export default function TodayClient({
           {postNoteLoading ? (
             <p className="text-sm text-gray-400 italic">Generating...</p>
           ) : postNote ? (
-            <div className="space-y-3">
+            <>
               {postNote.verdict && (
-                <p className="text-sm font-semibold text-emerald-900 leading-snug">{postNote.verdict}</p>
+                <p className="text-sm font-semibold text-emerald-900 leading-snug mb-2">{postNote.verdict}</p>
               )}
-              <div className="border-t border-emerald-200 pt-2">
-                <button
-                  onClick={() => setPostReadinessExpanded(v => !v)}
-                  className="w-full flex items-center justify-between text-left gap-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <Activity size={12} className="text-emerald-500 shrink-0" />
-                    <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">What Happened</span>
-                  </div>
-                  {postNote.readinessSummary && !postReadinessExpanded && (
-                    <span className="text-xs text-emerald-600 truncate max-w-[180px]">{postNote.readinessSummary}</span>
-                  )}
-                  {postReadinessExpanded ? <ChevronUp size={14} className="text-emerald-400 shrink-0" /> : <ChevronDown size={14} className="text-emerald-400 shrink-0" />}
-                </button>
-                {postReadinessExpanded && (
-                  <div className="mt-2 prose prose-sm prose-emerald max-w-none">
-                    <ReactMarkdown>
-                      {postNote.coachingTake.match(/## What Happened([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? ''}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
-              <div className="border-t border-emerald-200 pt-2">
-                <button
-                  onClick={() => setPostWorkoutExpanded(v => !v)}
-                  className="w-full flex items-center justify-between text-left gap-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <Zap size={12} className="text-emerald-500 shrink-0" />
-                    <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Recovery Outlook</span>
-                  </div>
-                  {postNote.workoutSummary && !postWorkoutExpanded && (
-                    <span className="text-xs text-emerald-600 truncate max-w-[180px]">{postNote.workoutSummary}</span>
-                  )}
-                  {postWorkoutExpanded ? <ChevronUp size={14} className="text-emerald-400 shrink-0" /> : <ChevronDown size={14} className="text-emerald-400 shrink-0" />}
-                </button>
-                {postWorkoutExpanded && (
-                  <div className="mt-2 prose prose-sm prose-emerald max-w-none">
-                    <ReactMarkdown>
-                      {postNote.coachingTake.match(/## Recovery Outlook([\s\S]*?)(?=## |$)/)?.[1]?.trim() ?? ''}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            </div>
+              <button
+                onClick={() => setPostWorkoutExpanded(v => !v)}
+                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800"
+              >
+                {postWorkoutExpanded
+                  ? <><ChevronUp size={12} /> Hide analysis</>
+                  : <><ChevronDown size={12} /> Read full analysis</>}
+              </button>
+              {postWorkoutExpanded && (
+                <div className="mt-3 pt-3 border-t border-emerald-200 prose prose-sm prose-slate max-w-none">
+                  <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-sm text-gray-400 italic">Tap ↻ to generate post-workout analysis.</p>
           )}

@@ -10,6 +10,14 @@ function str(v: unknown): string {
   return String(v).trim()
 }
 
+// Rejects Google Sheets date-serial artifacts (e.g. "1899-12-30 08:43:27")
+function paceSafe(v: unknown): string | null {
+  const s = str(v)
+  if (!s) return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return null
+  return s
+}
+
 function num(v: unknown): number | null {
   const n = parseFloat(str(v))
   return isNaN(n) ? null : n
@@ -103,7 +111,7 @@ function mapStrava(row: Row): StravaActivity {
     type:       str(row['Type']),
     distance:   num(row['Distance (mi)']) ?? 0,
     movingTime: num(row['Moving Time (min)']) ?? 0,
-    pace:       str(row['Avg Pace (min/mi)']) || null,
+    pace:       paceSafe(row['Avg Pace (min/mi)']),
     avgHr:      num(row['Avg HR']),
     maxHr:      num(row['Max HR']),
     calories:   num(row['Calories']),
@@ -138,7 +146,7 @@ function mapLog(row: Row): TrainingLogEntry {
     source:       str(row['Source']) as TrainingLogEntry['source'],
     distance:     num(row['Distance (mi)']),
     duration:     num(row['Duration (min)']),
-    pace:         str(row['Pace (min/mi)']) || null,
+    pace:         paceSafe(row['Pace (min/mi)']),
     avgHr:        num(row['Avg HR']),
     maxHr:        num(row['Max HR']),
     elevation:    num(row['Elevation (ft)']),
