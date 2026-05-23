@@ -283,6 +283,12 @@ export default function TodayClient({
   const isHardDay = note?.effortMode === 'hard' || note?.effortMode === 'race' ||
     displayEntry?.runType === 'Quality' || displayEntry?.dayType === 'Race'
   const isEveningMode = isViewingToday && !isMorningWindow && (hasActivities || isRestDay)
+  const isPostRun = isViewingToday && hasActivities && !isRestDay
+  const isAfternoon = new Date().getHours() >= 13
+  const showSyncPrompt = isViewingToday && !isRestDay && !hasActivities && !isMorningWindow && isAfternoon
+  const runLog = viewLogs.find(e => /run/i.test(e.activityType)) ?? viewLogs[0] ?? null
+  const distanceDelta = runLog?.distance != null && displayEntry?.distance != null
+    ? runLog.distance - displayEntry.distance : null
 
   async function handleRefreshHealth() {
     setRefreshingHealth(true)
@@ -433,7 +439,7 @@ export default function TodayClient({
         </div>
       )}
 
-      {(viewHealth || isViewingToday) && note?.readinessScore == null && (
+      {(viewHealth || isViewingToday) && note?.readinessScore == null && !isPostRun && (
         <div className="mb-4">
           {/* #6 — when watch data hasn't synced yet, explain why tiles are blank */}
           {!viewHealth && isViewingToday && (
@@ -510,7 +516,7 @@ export default function TodayClient({
       )}
 
       {/* Readiness + Effort card — shown when The Signal has a score */}
-      {note?.readinessScore != null && (
+      {note?.readinessScore != null && !isPostRun && (
         <div className="mb-4 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           {/* Readiness bar */}
           <button
@@ -681,70 +687,127 @@ export default function TodayClient({
           )}
         </div>
       ) : displayEntry ? (
-        <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm p-5 mb-4`}>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div>
-              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
-                {displayEntry.date === viewDate
-                  ? (isViewingToday ? 'TODAY' : 'THIS DAY')
-                  : `NEXT UP · ${new Date(displayEntry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
-              </div>
-              <div className="text-xl font-bold text-gray-900">
-                {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
-              </div>
+        isPostRun ? (
+          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm p-5 mb-4`}>
+            <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">DONE</div>
+            <div className="text-xl font-bold text-gray-900 mb-3">
+              {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
             </div>
-            <div className="flex flex-col items-end gap-1.5 shrink-0">
-              {leaveBy && displayEntry.date === viewDate && (
-                <div className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg">
-                  <Clock size={11} />
-                  Leave by {leaveBy}
+            <div className="space-y-2">
+              <div className="flex items-start gap-3">
+                <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Planned</span>
+                <span className="text-sm text-gray-500">
+                  {[
+                    displayEntry.distance && `${displayEntry.distance} mi`,
+                    displayEntry.targetPace && `${displayEntry.targetPace} /mi`,
+                    displayEntry.hrZone && `Z${displayEntry.hrZone}`,
+                    viewPhase?.name,
+                  ].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+              {runLog && (
+                <div className="flex items-start gap-3">
+                  <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Actual</span>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {[
+                      runLog.distance && `${runLog.distance} mi`,
+                      runLog.pace && `${runLog.pace} /mi`,
+                      runLog.duration && `${runLog.duration} min`,
+                      runLog.avgHr && `${runLog.avgHr} bpm`,
+                    ].filter(Boolean).join(' · ')}
+                    {distanceDelta != null && Math.abs(distanceDelta) > 0.5 && (
+                      <span className={`ml-2 text-xs font-normal ${distanceDelta > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        ({distanceDelta > 0 ? '+' : ''}{distanceDelta.toFixed(1)} mi)
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
-                {displayEntry.runType ?? displayEntry.dayType}
-              </span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
-            {displayEntry.distance && <span className="font-semibold text-gray-700">{displayEntry.distance} mi</span>}
-            {displayEntry.hrZone && <span>Zone {displayEntry.hrZone}</span>}
-            {displayEntry.targetPace && <span>{displayEntry.targetPace} /mi</span>}
-            {viewPhase && <span>{viewPhase.name}</span>}
-          </div>
-          {workoutInstructions && (() => {
-            const firstLine = workoutInstructions.split(/\n|\.(?:\s|$)/)[0].trim()
-            const hasMore = workoutInstructions.length > firstLine.length + 1
-            return (
-              <div className="mb-3">
-                <div className="text-sm text-gray-800 leading-relaxed font-mono">
-                  {instructionsExpanded ? workoutInstructions : firstLine}
+        ) : (
+          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm overflow-hidden mb-4`}>
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
+                    {displayEntry.date === viewDate
+                      ? (isViewingToday ? 'TODAY' : 'THIS DAY')
+                      : `NEXT UP · ${new Date(displayEntry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
+                  </div>
                 </div>
-                {hasMore && (
-                  <button
-                    onClick={() => setInstructionsExpanded(v => !v)}
-                    className="mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-0.5"
-                  >
-                    {instructionsExpanded ? <><ChevronUp size={12} /> Less</> : <><ChevronDown size={12} /> Full workout</>}
-                  </button>
-                )}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {leaveBy && displayEntry.date === viewDate && (
+                    <div className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg">
+                      <Clock size={11} />
+                      Leave by {leaveBy}
+                    </div>
+                  )}
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
+                    {displayEntry.runType ?? displayEntry.dayType}
+                  </span>
+                </div>
               </div>
-            )
-          })()}
-          {workoutReason && (
-            <button
-              onClick={() => setReasonExpanded(v => !v)}
-              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-3"
-            >
-              <span>Why this workout</span>
-              <span>{reasonExpanded ? '▴' : '▾'}</span>
-            </button>
-          )}
-          {workoutReason && reasonExpanded && (
-            <div className="text-sm text-gray-500 leading-relaxed mb-3 pl-2 border-l-2 border-gray-100">
-              {workoutReason}
+              <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
+                {displayEntry.distance && <span className="font-semibold text-gray-700">{displayEntry.distance} mi</span>}
+                {displayEntry.hrZone && <span>Zone {displayEntry.hrZone}</span>}
+                {displayEntry.targetPace && <span>{displayEntry.targetPace} /mi</span>}
+                {viewPhase && <span>{viewPhase.name}</span>}
+              </div>
+              {workoutInstructions && (() => {
+                const firstLine = workoutInstructions.split(/\n|\.(?:\s|$)/)[0].trim()
+                const hasMore = workoutInstructions.length > firstLine.length + 1
+                return (
+                  <div className="mb-3">
+                    <div className="text-sm text-gray-800 leading-relaxed font-mono">
+                      {instructionsExpanded ? workoutInstructions : firstLine}
+                    </div>
+                    {hasMore && (
+                      <button
+                        onClick={() => setInstructionsExpanded(v => !v)}
+                        className="mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-0.5"
+                      >
+                        {instructionsExpanded ? <><ChevronUp size={12} /> Less</> : <><ChevronDown size={12} /> Full workout</>}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+              {workoutReason && (
+                <button
+                  onClick={() => setReasonExpanded(v => !v)}
+                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-3"
+                >
+                  <span>Why this workout</span>
+                  <span>{reasonExpanded ? '▴' : '▾'}</span>
+                </button>
+              )}
+              {workoutReason && reasonExpanded && (
+                <div className="text-sm text-gray-500 leading-relaxed mb-3 pl-2 border-l-2 border-gray-100">
+                  {workoutReason}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+            {showSyncPrompt && (
+              <div className="border-t border-amber-100 bg-amber-50 px-5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-amber-700">After 1pm — did you run this morning?</span>
+                  <button
+                    onClick={handleSync}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 disabled:opacity-40"
+                  >
+                    <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
+                    {syncing ? 'Syncing…' : 'Sync Strava'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
           <div className="text-sm text-gray-400 italic">No workout scheduled.</div>
@@ -761,8 +824,8 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Pre-workout coaching card — hidden when visual readiness card is active */}
-      {note?.readinessScore == null && <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
+      {/* Pre-workout coaching card — hidden when visual readiness card is active or post-run */}
+      {note?.readinessScore == null && !isPostRun && <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
           <Radio size={14} className="text-slate-500" />
           <div className="text-xs font-bold text-slate-600 tracking-wide">The Signal</div>
