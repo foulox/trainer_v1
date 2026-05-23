@@ -222,6 +222,9 @@ export default function TodayClient({
   const nextWorkout = plan.find(e => e.date >= viewDate && e.dayType !== 'Rest') ?? null
   const displayEntry = viewEntry ?? (viewDate === today ? nextWorkout : null)
   const isRestDay = viewEntry?.dayType === 'Rest'
+  const tomorrowWorkout = isRestDay
+    ? plan.find(e => e.date > viewDate && e.dayType !== 'Rest') ?? null
+    : null
 
   const libraryMatch = displayEntry?.workout
     ? library.find(w => w.name.toLowerCase() === displayEntry.workout!.toLowerCase()) ?? null
@@ -389,6 +392,20 @@ export default function TodayClient({
 
       {(viewHealth || isViewingToday) && note?.readinessScore == null && (
         <div className="mb-4">
+          {/* #6 — when watch data hasn't synced yet, explain why tiles are blank */}
+          {!viewHealth && isViewingToday && (
+            <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs text-gray-400">
+              <span className="flex-1">Watch data not yet synced — HRV and RHR pending</span>
+              <button
+                onClick={handleRefreshHealth}
+                disabled={refreshingHealth}
+                className="text-blue-500 hover:text-blue-700 disabled:opacity-40 flex items-center gap-1 shrink-0 font-medium"
+              >
+                <RefreshCw size={10} className={refreshingHealth ? 'animate-spin' : ''} />
+                {refreshingHealth ? 'Checking…' : 'Refresh'}
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
               <Zap size={16} className={`mx-auto mb-1 ${hrvColor(viewHealth?.hrv ?? null)}`} />
@@ -436,7 +453,7 @@ export default function TodayClient({
               <div className="text-xs text-gray-400 mt-0.5">RHR bpm</div>
             </div>
           </div>
-          {isViewingToday && (
+          {isViewingToday && viewHealth && (
             <button
               onClick={handleRefreshHealth}
               disabled={refreshingHealth}
@@ -577,16 +594,47 @@ export default function TodayClient({
       )}
 
       {isRestDay ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
-          <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
-            {isViewingToday ? 'TODAY' : 'THIS DAY'}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <div className="p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
+                  {isViewingToday ? 'TODAY' : 'THIS DAY'} · REST
+                </div>
+                <div className="text-xl font-bold text-gray-900">Recovery Day</div>
+                {viewPhase && (
+                  <div className="text-sm text-gray-500 mt-0.5">{viewPhase.name}</div>
+                )}
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 shrink-0">Rest</span>
+            </div>
+            {note?.verdict && (
+              <p className="text-sm text-gray-600 mt-3 leading-relaxed">{note.verdict}</p>
+            )}
           </div>
-          <div className="text-xl font-bold text-gray-900">Rest Day</div>
-          {viewPhase && (
-            <div className="text-sm text-gray-500 mt-1">{viewPhase.name} · {viewPhase.goal}</div>
-          )}
-          {note?.verdict && (
-            <p className="text-sm text-gray-500 mt-2 italic leading-snug">{note.verdict}</p>
+          {tomorrowWorkout && (
+            <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
+              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1.5">TOMORROW</div>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">
+                    {tomorrowWorkout.workout ?? tomorrowWorkout.runType ?? tomorrowWorkout.dayType}
+                  </div>
+                  {(tomorrowWorkout.distance || tomorrowWorkout.targetPace || tomorrowWorkout.hrZone) && (
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {[
+                        tomorrowWorkout.distance && `${tomorrowWorkout.distance} mi`,
+                        tomorrowWorkout.targetPace && `${tomorrowWorkout.targetPace} /mi`,
+                        tomorrowWorkout.hrZone && `Z${tomorrowWorkout.hrZone}`,
+                      ].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-600 shrink-0 whitespace-nowrap">
+                  {tomorrowWorkout.runType ?? tomorrowWorkout.dayType}
+                </span>
+              </div>
+            </div>
           )}
         </div>
       ) : displayEntry ? (
