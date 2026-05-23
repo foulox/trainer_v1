@@ -142,6 +142,31 @@ const MORNING_DIRECTIVES: Record<string, string> = {
   rough: "Your body is asking for easy today — just move, no pressure on pace or effort.",
 }
 
+function CheckCircle({ done }: { done: boolean }) {
+  return (
+    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${done ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'}`}>
+      {done && (
+        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      )}
+    </div>
+  )
+}
+
+function EveningRow({ done, label, why, note }: { done: boolean; label: string; why?: string; note?: string }) {
+  return (
+    <div className={`flex items-start gap-3 ${done ? 'opacity-50' : ''}`}>
+      <CheckCircle done={done} />
+      <div>
+        <div className={`text-sm font-semibold ${done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{label}</div>
+        {!done && why && <div className="text-xs text-gray-400 mt-0.5">{why}</div>}
+        {note && <div className="text-xs text-gray-300 mt-0.5">{note}</div>}
+      </div>
+    </div>
+  )
+}
+
 function readinessScoreColor(score: number) {
   if (score >= 7) return 'text-emerald-600'
   if (score >= 4) return 'text-amber-500'
@@ -240,6 +265,24 @@ export default function TodayClient({
   const hasActivities = viewLogs.length > 0
   const isMorningWindow = isViewingToday && !isRestDay && !hasActivities && isBeforeRunWindow(today)
   const leaveBy = isViewingToday && !isRestDay ? getLeaveByTime(today) : null
+
+  // Weekly activity tracking for evening stack
+  const weekStartDate = (() => {
+    const d = new Date(today + 'T00:00:00')
+    const dow = d.getDay()
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+    return d.toISOString().slice(0, 10)
+  })()
+  const weekLogs = log.filter(e => e.date >= weekStartDate && e.date <= today)
+  const weekStrength = weekLogs.filter(e => /weight|strength|lift|gym/i.test(e.activityType)).length
+  const weekYoga    = weekLogs.filter(e => /yoga/i.test(e.activityType)).length
+  const weekClimbing = weekLogs.filter(e => /climb|boulder/i.test(e.activityType)).length
+  const todayYoga     = viewLogs.some(e => /yoga/i.test(e.activityType))
+  const todayStrength = viewLogs.some(e => /weight|strength|lift|gym/i.test(e.activityType))
+  const todayClimbing = viewLogs.some(e => /climb|boulder/i.test(e.activityType))
+  const isHardDay = note?.effortMode === 'hard' || note?.effortMode === 'race' ||
+    displayEntry?.runType === 'Quality' || displayEntry?.dayType === 'Race'
+  const isEveningMode = isViewingToday && !isMorningWindow && (hasActivities || isRestDay)
 
   async function handleRefreshHealth() {
     setRefreshingHealth(true)
@@ -869,6 +912,62 @@ export default function TodayClient({
           ) : (
             <p className="text-sm text-gray-400 italic">Tap ↻ to generate post-workout analysis.</p>
           )}
+        </div>
+      )}
+
+      {/* Evening recovery stack (#13) */}
+      {isEveningMode && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <div className="px-5 pt-4 pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-gray-400 tracking-wide">TONIGHT</span>
+              {isHardDay && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
+                  Hard day
+                </span>
+              )}
+            </div>
+            <div className="space-y-2.5">
+              {isHardDay && (
+                <EveningRow
+                  done={todayStrength}
+                  label="Leg workout"
+                  why="Compound today's training into the same recovery window"
+                  note={`${weekStrength}/2 this week`}
+                />
+              )}
+              <EveningRow
+                done={todayYoga}
+                label="Yoga"
+                why={isHardDay ? 'Flush the legs, CNS recovery' : isRestDay ? 'Full recovery focus' : 'Recovery priority on easy days'}
+                note={`${weekYoga} this week`}
+              />
+              <EveningRow done={false} label="Core" why="Daily habit" />
+              <EveningRow
+                done={todayClimbing || (!isHardDay && todayStrength)}
+                label="Upper body / Bouldering"
+                why="Once a week — bouldering counts"
+                note={`${weekClimbing}/1 this week`}
+              />
+              {!isHardDay && (
+                <EveningRow
+                  done={false}
+                  label="Balance work"
+                  why="Single-leg stability — running happens on one leg"
+                />
+              )}
+            </div>
+            {!todayYoga && (
+              <p className="mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400 leading-snug">
+                Not feeling 30 min? Balance board or 10 min stretching counts. Theragun + Normatec if you&apos;re spent.
+              </p>
+            )}
+          </div>
+          <div className="border-t border-gray-100 px-5 py-2.5 flex gap-4 text-xs text-gray-400">
+            <span>Strength <span className="font-semibold text-gray-600">{weekStrength}/2</span></span>
+            <span>Yoga <span className="font-semibold text-gray-600">{weekYoga}</span></span>
+            {weekClimbing > 0 && <span>Climbing <span className="font-semibold text-gray-600">{weekClimbing}</span></span>}
+          </div>
         </div>
       )}
 
