@@ -104,8 +104,11 @@ export async function fetchPostWorkoutNoteForDate(date: string): Promise<Coachin
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
     const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const tomorrowDate = new Date(date + 'T00:00:00')
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+    const tomorrowWorkout = plan.find(e => e.date === tomorrowDate.toISOString().slice(0, 10))
 
-    const note = await generatePostWorkoutNote(workout, phase, nextRace, todayLogs, dayHealth, recentLog, recentHealth, checkIn)
+    const note = await generatePostWorkoutNote(workout, phase, nextRace, todayLogs, dayHealth, recentLog, recentHealth, checkIn, tomorrowWorkout)
     await setPostCoachingNote(note)
     return note
   } catch {
@@ -403,8 +406,11 @@ export async function regeneratePostCoachingNote(date: string): Promise<Coaching
     const recentLog = log.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
     const dayHealth = health.find(e => e.date === date)
     const recentHealth = health.filter(e => e.date < date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+    const tomorrowDate = new Date(date + 'T00:00:00')
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+    const tomorrowWorkout = plan.find(e => e.date === tomorrowDate.toISOString().slice(0, 10))
 
-    const note = await generatePostWorkoutNote(workout, phase, nextRace, todayLogs, dayHealth, recentLog, recentHealth, checkIn)
+    const note = await generatePostWorkoutNote(workout, phase, nextRace, todayLogs, dayHealth, recentLog, recentHealth, checkIn, tomorrowWorkout)
     await setPostCoachingNote(note)
     return note
   } catch {

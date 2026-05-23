@@ -166,8 +166,9 @@ export async function generatePostWorkoutNote(
   recentLog: TrainingLogEntry[],
   recentHealth?: HealthEntry[],
   checkIn?: CheckIn | null,
+  tomorrowWorkout?: PlannedWorkout,
 ): Promise<CoachingNote> {
-  const context = buildPostWorkoutContext(workout, phase, nextRace, todayLogs, todayHealth, recentLog, recentHealth, checkIn)
+  const context = buildPostWorkoutContext(workout, phase, nextRace, todayLogs, todayHealth, recentLog, recentHealth, checkIn, tomorrowWorkout)
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
@@ -175,27 +176,33 @@ export async function generatePostWorkoutNote(
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: `Write a post-workout assessment for this athlete's completed training day.
+      content: `Write a post-workout coaching note for this athlete's completed training day.
 
 ${context}
 
 Format your response EXACTLY as follows:
 
-VERDICT: [One sentence. State a specific data point (effort level, zones, RPE, load) then give a clear takeaway: nailed it / solid effort / watch recovery / flag something. Be direct.]
+VERDICT: [One sentence. Name a specific data point (zones, pace, distance, RPE) then give a direct takeaway: nailed it / solid / watch recovery / flag something.]
 
 ## What Happened
-SUMMARY: [One line — planned vs actual bottom line]
-- Compare planned vs actual (type, distance, duration, zones)
-- If substituted — assess whether it was a smart call
-- Reference actual numbers
+SUMMARY: [One line — planned vs actual, bottom line]
+- Compare planned vs actual (type, distance, pace, zones)
+- Was the execution right for this workout type and training phase?
+- Reference actual numbers. Acknowledge all activities logged today (run, bike commute, yoga, lifting) — not just the run.
+
+## What It Sets Up
+SUMMARY: [One line — how today connects to tomorrow and the goal]
+- Name tomorrow's specific workout and explain how today's execution helps or sets it up
+- If tomorrow is a rest day, explain why the timing is good or what to watch
+- Connect to the race goal: is Lou on track? Be specific — reference phase, mileage, fitness signals.
 
 ## Recovery Outlook
-SUMMARY: [One line — load characterization and tomorrow's need]
-- Characterize today's load (easy/moderate/hard) based on zones, duration, RPE
-- What recovery does tomorrow need?
-- Flag anything — cumulative load, upcoming quality day, injury signals
+SUMMARY: [One line — load characterization and tonight's priority]
+- Characterize today's total load (easy/moderate/hard) based on zones, duration, RPE
+- What does tonight need? What should tomorrow feel like going in?
+- Flag anything: cumulative load, injury signals, upcoming quality day
 
-Reference specific numbers. No filler.`,
+Reference specific numbers. No filler. Write like a coach who knows this athlete, not a generic fitness app.`,
     }],
   })
 
@@ -456,6 +463,7 @@ function buildPostWorkoutContext(
   recentLog: TrainingLogEntry[],
   recentHealth?: HealthEntry[],
   checkIn?: CheckIn | null,
+  tomorrowWorkout?: PlannedWorkout,
 ): string {
   const wip = phase ? weekInPhase(workout.date, phase) : null
   const hrvValues = (recentHealth ?? []).filter(h => h.hrv).map(h => h.hrv!)
@@ -470,6 +478,12 @@ function buildPostWorkoutContext(
     '',
     phase ? `CURRENT PHASE: ${phase.name} (Week ${wip} of ${phase.weeks}) — ${phase.goal}` : '',
     nextRace ? `TARGET RACE: ${nextRace.name} on ${nextRace.date} — Grade ${nextRace.grade}` : '',
+    '',
+    tomorrowWorkout ? [
+      `TOMORROW (${tomorrowWorkout.date}): ${tomorrowWorkout.dayType}${tomorrowWorkout.runType ? ` — ${tomorrowWorkout.runType}` : ''} — ${tomorrowWorkout.workout ?? (tomorrowWorkout.dayType === 'Rest' ? 'Rest day' : 'Unplanned')}`,
+      tomorrowWorkout.distance ? `  Distance: ${tomorrowWorkout.distance} mi | Zone: ${tomorrowWorkout.hrZone ?? '—'} | Intensity: ${tomorrowWorkout.intensity ?? '—'}` : '',
+      tomorrowWorkout.reason ? `  Purpose: ${tomorrowWorkout.reason}` : '',
+    ].filter(Boolean).join('\n') : '',
     '',
     'ACTUAL ACTIVITIES TODAY:',
     ...todayLogs.map(e => {
