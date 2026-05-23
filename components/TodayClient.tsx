@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
+import React, { useState, useTransition, useEffect } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn, LibraryWorkout } from '@/lib/data'
-import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio } from 'lucide-react'
+import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio, Clock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
@@ -113,6 +113,35 @@ function EffortScale({ mode }: { mode: string }) {
   )
 }
 
+// Run start times by day of week (0=Sun…6=Sat). Sunday is rest — no entry.
+const RUN_START_TIMES: Record<number, string> = {
+  1: '06:45', 2: '06:30', 3: '06:00', 4: '06:30', 5: '07:00', 6: '08:00',
+}
+
+function getLeaveByTime(isoDate: string): string | null {
+  const dow = new Date(isoDate + 'T00:00:00').getDay()
+  const start = RUN_START_TIMES[dow]
+  if (!start) return null
+  const [h, m] = start.split(':').map(Number)
+  const lm = h * 60 + m - 10
+  return `${Math.floor(lm / 60)}:${String(lm % 60).padStart(2, '0')}`
+}
+
+function isBeforeRunWindow(isoDate: string): boolean {
+  const dow = new Date(isoDate + 'T00:00:00').getDay()
+  const start = RUN_START_TIMES[dow]
+  if (!start) return false
+  const [h, m] = start.split(':').map(Number)
+  const now = new Date()
+  return now.getHours() * 60 + now.getMinutes() < h * 60 + m + 45
+}
+
+const MORNING_DIRECTIVES: Record<string, string> = {
+  good:  "You're primed — try to get 5 minutes of dynamic stretching in before you go.",
+  okay:  "You're a bit flat — walk the dog easy, don't overthink it, just get out the door.",
+  rough: "Your body is asking for easy today — just move, no pressure on pace or effort.",
+}
+
 function readinessScoreColor(score: number) {
   if (score >= 7) return 'text-emerald-600'
   if (score >= 4) return 'text-amber-500'
@@ -163,6 +192,17 @@ export default function TodayClient({
   const [sleepScore, setSleepScore] = useState<number | null>(
     () => health.find(e => e.date === today)?.sleepScore ?? null
   )
+  const [morningFeel, setMorningFeel] = useState<'good' | 'okay' | 'rough' | null>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem(`trainer-morning-${today}`)
+    if (stored === 'good' || stored === 'okay' || stored === 'rough') setMorningFeel(stored)
+  }, [today])
+
+  function saveMorningFeel(feel: 'good' | 'okay' | 'rough') {
+    setMorningFeel(feel)
+    localStorage.setItem(`trainer-morning-${today}`, feel)
+  }
 
   // Derive view data from viewDate
   const viewEntry = plan.find(e => e.date === viewDate) ?? null
@@ -195,6 +235,8 @@ export default function TodayClient({
 
   const isViewingToday = viewDate === today
   const hasActivities = viewLogs.length > 0
+  const isMorningWindow = isViewingToday && !isRestDay && !hasActivities && isBeforeRunWindow(today)
+  const leaveBy = isViewingToday && !isRestDay ? getLeaveByTime(today) : null
 
   async function handleRefreshHealth() {
     setRefreshingHealth(true)
@@ -308,6 +350,43 @@ export default function TodayClient({
         </div>
       )}
 
+      {/* Morning directive — shown after check-in completes (#9) */}
+      {isMorningWindow && morningFeel && (
+        <div className="mb-4 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+          <p className="text-sm text-blue-900 font-medium leading-snug">
+            {MORNING_DIRECTIVES[morningFeel]}
+          </p>
+          <button
+            onClick={() => { setMorningFeel(null); localStorage.removeItem(`trainer-morning-${today}`) }}
+            className="mt-1.5 text-xs text-blue-400 hover:text-blue-600"
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {/* Morning check-in card — shown before first tap (#8) */}
+      {isMorningWindow && !morningFeel && (
+        <div className="mb-4 bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+          <p className="text-xs font-bold text-gray-400 tracking-wide mb-3">HOW&apos;S THIS MORNING?</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(['good', 'okay', 'rough'] as const).map(feel => (
+              <button
+                key={feel}
+                onClick={() => saveMorningFeel(feel)}
+                className={`py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                  feel === 'good'  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 active:bg-emerald-100' :
+                  feel === 'okay'  ? 'bg-amber-50 border-amber-200 text-amber-700 active:bg-amber-100' :
+                                     'bg-red-50 border-red-200 text-red-700 active:bg-red-100'
+                }`}
+              >
+                {feel === 'good' ? 'Feeling good' : feel === 'okay' ? 'A bit stiff' : 'Rough day'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {(viewHealth || isViewingToday) && note?.readinessScore == null && (
         <div className="mb-4">
           <div className="grid grid-cols-3 gap-2">
@@ -393,6 +472,10 @@ export default function TodayClient({
                     <RefreshCw size={12} className={regenerating ? 'animate-spin' : ''} />
                   </button>
                 )}
+                {readinessBarExpanded
+                  ? <ChevronUp size={14} className="text-gray-300" />
+                  : <ChevronDown size={14} className="text-gray-300" />
+                }
               </div>
             </div>
             <div className="relative h-2 rounded-full bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 mb-2.5">
@@ -401,12 +484,12 @@ export default function TodayClient({
                 style={{ left: `${Math.round(((note.readinessScore - 1) / 9) * 100)}%` }}
               />
             </div>
-            {note.readinessSummary && (
-              <p className="text-xs text-gray-500 leading-snug">{note.readinessSummary}</p>
-            )}
           </button>
           {readinessBarExpanded && (
             <div className="border-t border-gray-50 pt-3 pb-4 px-4">
+              {note.readinessSummary && (
+                <p className="text-xs text-gray-500 leading-snug mb-3">{note.readinessSummary}</p>
+              )}
               {/* HRV/Sleep/RHR tiles folded in here */}
               {(viewHealth || isViewingToday) && (
                 <div className="mb-3">
@@ -519,9 +602,17 @@ export default function TodayClient({
                 {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
               </div>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 shrink-0 whitespace-nowrap">
-              {displayEntry.runType ?? displayEntry.dayType}
-            </span>
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              {leaveBy && displayEntry.date === viewDate && (
+                <div className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg">
+                  <Clock size={11} />
+                  Leave by {leaveBy}
+                </div>
+              )}
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
+                {displayEntry.runType ?? displayEntry.dayType}
+              </span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
             {displayEntry.distance && <span className="font-semibold text-gray-700">{displayEntry.distance} mi</span>}
