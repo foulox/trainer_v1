@@ -532,9 +532,7 @@ export async function createFeedbackIssue(data: {
   }
 
   const label = data.type === 'bug' ? 'bug' : 'enhancement'
-  const title = data.type === 'bug'
-    ? `Bug: ${data.description.slice(0, 60)}${data.description.length > 60 ? '…' : ''}`
-    : `Feature: ${data.description.slice(0, 60)}${data.description.length > 60 ? '…' : ''}`
+  const title = `${data.type === 'bug' ? 'Bug' : 'Feature'}: ${data.description}`
 
   const res = await fetch('https://api.github.com/repos/foulox/trainer_v1/issues', {
     method: 'POST',
