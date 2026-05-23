@@ -11,7 +11,7 @@ function str(v: unknown): string {
 }
 
 // Rejects Google Sheets date-serial artifacts (e.g. "1899-12-30 08:43:27")
-function paceSafe(v: unknown): string | null {
+export function paceSafe(v: unknown): string | null {
   const s = str(v)
   if (!s) return null
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return null
@@ -28,7 +28,7 @@ function date(v: unknown): string {
   return s.length >= 10 ? s.slice(0, 10) : s
 }
 
-function mapPlan(row: Row): PlannedWorkout {
+export function mapPlan(row: Row): PlannedWorkout {
   return {
     date:         date(row['Date']),
     day:          str(row['Day']),
@@ -58,14 +58,14 @@ function mapPhase(row: Row): Phase {
   }
 }
 
-function normalizeSport(raw: string): string {
+export function normalizeSport(raw: string): string {
   const s = raw.trim().toLowerCase()
   if (s === 'running') return 'Run'
   if (s === 'cycling' || s === 'biking') return 'Bike'
   return raw.trim()
 }
 
-function mapLibraryWorkout(row: Row): LibraryWorkout {
+export function mapLibraryWorkout(row: Row): LibraryWorkout {
   return {
     name:          str(row['Workout Name']),
     sport:         normalizeSport(str(row['Sport'])),
@@ -103,7 +103,7 @@ function mapRace(row: Row): Race {
   }
 }
 
-function mapStrava(row: Row): StravaActivity {
+export function mapStrava(row: Row): StravaActivity {
   return {
     activityId: str(row['Activity ID']),
     date:       date(row['Date']),
@@ -136,7 +136,7 @@ function mapHealth(row: Row): HealthEntry {
   }
 }
 
-function mapLog(row: Row): TrainingLogEntry {
+export function mapLog(row: Row): TrainingLogEntry {
   return {
     date:         date(row['Date']),
     day:          str(row['Day']),
@@ -178,21 +178,27 @@ async function fetchSheet<T>(url: string, mapper: (row: Row) => T, fresh?: boole
   }
 }
 
+// Non-Rest rows win over Rest rows for the same date. Handles race day overlay:
+// createPlanDays writes a Rest row, addRace writes a Race row for the same date.
+export function deduplicatePlanRows(rows: PlannedWorkout[]): PlannedWorkout[] {
+  const byDate = new Map<string, PlannedWorkout>()
+  for (const row of rows) {
+    const existing = byDate.get(row.date)
+    if (!existing || row.dayType !== 'Rest' || existing.dayType === 'Rest') {
+      byDate.set(row.date, row)
+    }
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
 export async function fetchPlanData(opts?: { fresh?: boolean }) {
   const url = process.env.PLAN_SHEETS_URL!
   try {
     const res = await fetch(url, cacheOpt(opts?.fresh))
     const json = await res.json() as { plan: Row[], phases: Row[], races: Row[] }
     const allRows = json.plan.map(mapPlan).filter(e => e.date)
-    const byDate = new Map<string, PlannedWorkout>()
-    for (const row of allRows) {
-      const existing = byDate.get(row.date)
-      if (!existing || row.dayType !== 'Rest' || existing.dayType === 'Rest') {
-        byDate.set(row.date, row)
-      }
-    }
     return {
-      plan:   Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date)),
+      plan:   deduplicatePlanRows(allRows),
       phases: json.phases.map(mapPhase).filter(e => e.name),
       races:  json.races.map(mapRace).filter(e => e.name),
     }
