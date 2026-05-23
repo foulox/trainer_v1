@@ -829,7 +829,7 @@ export default function TodayClient({
                   ) : postNote ? (
                     <>
                       {postNote.verdict && (
-                        <p className="text-sm text-emerald-900 leading-snug mb-3">{postNote.verdict}</p>
+                        <p className="text-sm text-emerald-900 leading-snug mb-3">{postNote.verdict.replace(/\*+/g, '')}</p>
                       )}
                       <div className="prose prose-sm prose-slate max-w-none">
                         <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
