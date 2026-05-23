@@ -664,6 +664,62 @@ export default function TodayClient({
         </div>
       )}
 
+      {/* Evening recovery stack (#13) — shown before run summary so it's first thing seen post-run */}
+      {isEveningMode && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <div className="px-5 pt-4 pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-gray-400 tracking-wide">TONIGHT</span>
+              {isHardDay && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
+                  Hard day
+                </span>
+              )}
+            </div>
+            <div className="space-y-2.5">
+              {isHardDay && (
+                <EveningRow
+                  done={todayStrength}
+                  label="Leg workout"
+                  why="Compound today's training into the same recovery window"
+                  note={`${weekStrength}/2 this week`}
+                />
+              )}
+              <EveningRow
+                done={todayYoga}
+                label="Yoga"
+                why={isHardDay ? 'Flush the legs, CNS recovery' : isRestDay ? 'Full recovery focus' : 'Recovery priority on easy days'}
+                note={`${weekYoga} this week`}
+              />
+              <EveningRow done={false} label="Core" why="Daily habit" />
+              <EveningRow
+                done={todayClimbing || (!isHardDay && todayStrength)}
+                label="Upper body / Bouldering"
+                why="Once a week — bouldering counts"
+                note={`${weekClimbing}/1 this week`}
+              />
+              {!isHardDay && (
+                <EveningRow
+                  done={false}
+                  label="Balance work"
+                  why="Single-leg stability — running happens on one leg"
+                />
+              )}
+            </div>
+            {!todayYoga && (
+              <p className="mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400 leading-snug">
+                Not feeling 30 min? Balance board or 10 min stretching counts. Theragun + Normatec if you&apos;re spent.
+              </p>
+            )}
+          </div>
+          <div className="border-t border-gray-100 px-5 py-2.5 flex gap-4 text-xs text-gray-400">
+            <span>Strength <span className="font-semibold text-gray-600">{weekStrength}/2</span></span>
+            <span>Yoga <span className="font-semibold text-gray-600">{weekYoga}</span></span>
+            {weekClimbing > 0 && <span>Climbing <span className="font-semibold text-gray-600">{weekClimbing}</span></span>}
+          </div>
+        </div>
+      )}
+
       {isRestDay ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
           <div className="p-5">
@@ -710,39 +766,78 @@ export default function TodayClient({
         </div>
       ) : displayEntry ? (
         isPostRun ? (
-          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm p-5 mb-4`}>
-            <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">DONE</div>
-            <div className="text-xl font-bold text-gray-900 mb-3">
-              {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-start gap-3">
-                <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Planned</span>
-                <span className="text-sm text-gray-500">
-                  {[
-                    displayEntry.distance && `${displayEntry.distance} mi`,
-                    displayEntry.targetPace && `${displayEntry.targetPace} /mi`,
-                    displayEntry.hrZone && `Z${displayEntry.hrZone}`,
-                    viewPhase?.name,
-                  ].filter(Boolean).join(' · ')}
-                </span>
+          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm overflow-hidden mb-4`}>
+            <div className="p-5">
+              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">DONE</div>
+              <div className="text-xl font-bold text-gray-900 mb-3">
+                {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
               </div>
-              {runLog && (
+              <div className="space-y-2">
                 <div className="flex items-start gap-3">
-                  <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Actual</span>
-                  <div className="text-sm font-semibold text-gray-900">
+                  <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Planned</span>
+                  <span className="text-sm text-gray-500">
                     {[
-                      runLog.distance && `${runLog.distance} mi`,
-                      runLog.pace && `${runLog.pace} /mi`,
-                      runLog.duration && `${runLog.duration} min`,
-                      runLog.avgHr && `${runLog.avgHr} bpm`,
+                      displayEntry.distance && `${displayEntry.distance} mi`,
+                      displayEntry.targetPace && `${displayEntry.targetPace} /mi`,
+                      displayEntry.hrZone && `Z${displayEntry.hrZone}`,
+                      viewPhase?.name,
                     ].filter(Boolean).join(' · ')}
-                    {distanceDelta != null && Math.abs(distanceDelta) > 0.5 && (
-                      <span className={`ml-2 text-xs font-normal ${distanceDelta > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        ({distanceDelta > 0 ? '+' : ''}{distanceDelta.toFixed(1)} mi)
-                      </span>
-                    )}
+                  </span>
+                </div>
+                {runLog && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Actual</span>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {[
+                        runLog.distance && `${runLog.distance} mi`,
+                        runLog.pace && `${runLog.pace} /mi`,
+                        runLog.duration && `${runLog.duration} min`,
+                        runLog.avgHr && `${runLog.avgHr} bpm`,
+                      ].filter(Boolean).join(' · ')}
+                      {distanceDelta != null && Math.abs(distanceDelta) > 0.5 && (
+                        <span className={`ml-2 text-xs font-normal ${distanceDelta > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          ({distanceDelta > 0 ? '+' : ''}{distanceDelta.toFixed(1)} mi)
+                        </span>
+                      )}
+                    </div>
                   </div>
+                )}
+              </div>
+            </div>
+            {/* Signal — embedded at bottom, hidden until tapped */}
+            <div className="border-t border-gray-100">
+              <button
+                onClick={() => setPostWorkoutExpanded(v => !v)}
+                className="w-full px-5 py-3 flex items-center justify-between text-left bg-gray-50 touch-manipulation"
+              >
+                <div className="flex items-center gap-2">
+                  <Radio size={13} className="text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-700 tracking-wide">The Signal</span>
+                  <span className="text-xs text-emerald-500">Asst. Coach</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span onClick={e => { e.stopPropagation(); handleGeneratePostNote() }}>
+                    <RefreshCw size={12} className={`text-emerald-400 hover:text-emerald-600 ${postNoteLoading ? 'animate-spin' : ''}`} />
+                  </span>
+                  {postWorkoutExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                </div>
+              </button>
+              {postWorkoutExpanded && (
+                <div className="px-5 pb-5 pt-3 bg-emerald-50">
+                  {postNoteLoading ? (
+                    <p className="text-sm text-gray-400 italic">Generating...</p>
+                  ) : postNote ? (
+                    <>
+                      {postNote.verdict && (
+                        <p className="text-sm text-emerald-900 leading-snug mb-3">{postNote.verdict}</p>
+                      )}
+                      <div className="prose prose-sm prose-slate max-w-none">
+                        <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Tap ↻ to generate analysis.</p>
+                  )}
                 </div>
               )}
             </div>
@@ -983,8 +1078,8 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Post-workout coaching card — collapsed by default, expands on tap */}
-      {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
+      {/* Post-workout coaching card — for past days only; today uses Signal inside DONE card */}
+      {hasActivities && !isPostRun && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Radio size={14} className="text-emerald-600" />
@@ -1025,61 +1120,6 @@ export default function TodayClient({
         </div>
       )}
 
-      {/* Evening recovery stack (#13) */}
-      {isEveningMode && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
-          <div className="px-5 pt-4 pb-3">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-gray-400 tracking-wide">TONIGHT</span>
-              {isHardDay && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
-                  Hard day
-                </span>
-              )}
-            </div>
-            <div className="space-y-2.5">
-              {isHardDay && (
-                <EveningRow
-                  done={todayStrength}
-                  label="Leg workout"
-                  why="Compound today's training into the same recovery window"
-                  note={`${weekStrength}/2 this week`}
-                />
-              )}
-              <EveningRow
-                done={todayYoga}
-                label="Yoga"
-                why={isHardDay ? 'Flush the legs, CNS recovery' : isRestDay ? 'Full recovery focus' : 'Recovery priority on easy days'}
-                note={`${weekYoga} this week`}
-              />
-              <EveningRow done={false} label="Core" why="Daily habit" />
-              <EveningRow
-                done={todayClimbing || (!isHardDay && todayStrength)}
-                label="Upper body / Bouldering"
-                why="Once a week — bouldering counts"
-                note={`${weekClimbing}/1 this week`}
-              />
-              {!isHardDay && (
-                <EveningRow
-                  done={false}
-                  label="Balance work"
-                  why="Single-leg stability — running happens on one leg"
-                />
-              )}
-            </div>
-            {!todayYoga && (
-              <p className="mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400 leading-snug">
-                Not feeling 30 min? Balance board or 10 min stretching counts. Theragun + Normatec if you&apos;re spent.
-              </p>
-            )}
-          </div>
-          <div className="border-t border-gray-100 px-5 py-2.5 flex gap-4 text-xs text-gray-400">
-            <span>Strength <span className="font-semibold text-gray-600">{weekStrength}/2</span></span>
-            <span>Yoga <span className="font-semibold text-gray-600">{weekYoga}</span></span>
-            {weekClimbing > 0 && <span>Climbing <span className="font-semibold text-gray-600">{weekClimbing}</span></span>}
-          </div>
-        </div>
-      )}
 
       {/* Night-before prep (#14) */}
       {isNightMode && (
