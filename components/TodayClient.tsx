@@ -127,6 +127,12 @@ function getLeaveByTime(isoDate: string): string | null {
   return `${Math.floor(lm / 60)}:${String(lm % 60).padStart(2, '0')}`
 }
 
+function computeLeaveByFromStart(startTime: string): string {
+  const [h, m] = startTime.split(':').map(Number)
+  const lm = h * 60 + m - 10
+  return `${Math.floor(lm / 60)}:${String(lm % 60).padStart(2, '0')}`
+}
+
 function isBeforeRunWindow(isoDate: string): boolean {
   const dow = new Date(isoDate + 'T00:00:00').getDay()
   const start = RUN_START_TIMES[dow]
@@ -218,10 +224,16 @@ export default function TodayClient({
     () => health.find(e => e.date === today)?.sleepScore ?? null
   )
   const [morningFeel, setMorningFeel] = useState<'good' | 'okay' | 'rough' | null>(null)
+  const [runStartOverride, setRunStartOverride] = useState<string | null>(null)
+  const [editingLeaveBy, setEditingLeaveBy] = useState(false)
+  const [recoveryDismissed, setRecoveryDismissed] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem(`trainer-morning-${today}`)
     if (stored === 'good' || stored === 'okay' || stored === 'rough') setMorningFeel(stored)
+    const startOverride = localStorage.getItem(`trainer-run-start-${today}`)
+    if (startOverride) setRunStartOverride(startOverride)
+    if (localStorage.getItem(`trainer-recovery-dismissed-${today}`) === '1') setRecoveryDismissed(true)
   }, [today])
 
   function saveMorningFeel(feel: 'good' | 'okay' | 'rough') {
@@ -264,7 +276,9 @@ export default function TodayClient({
   const isViewingToday = viewDate === today
   const hasActivities = viewLogs.length > 0
   const isMorningWindow = isViewingToday && !isRestDay && !hasActivities && isBeforeRunWindow(today)
+  const defaultRunStart = RUN_START_TIMES[new Date(today + 'T00:00:00').getDay()] ?? null
   const leaveBy = isViewingToday && !isRestDay ? getLeaveByTime(today) : null
+  const effectiveLeaveBy = runStartOverride ? computeLeaveByFromStart(runStartOverride) : leaveBy
 
   // Weekly activity tracking for evening stack
   const weekStartDate = (() => {
@@ -289,6 +303,14 @@ export default function TodayClient({
   const runLog = viewLogs.find(e => /run/i.test(e.activityType)) ?? viewLogs[0] ?? null
   const distanceDelta = runLog?.distance != null && displayEntry?.distance != null
     ? runLog.distance - displayEntry.distance : null
+  const nextDayDate = (() => {
+    const d = new Date(today + 'T00:00:00')
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().slice(0, 10)
+  })()
+  const nextDayPlan = plan.find(e => e.date === nextDayDate) ?? null
+  const isNightMode = isViewingToday && isEveningMode && new Date().getHours() >= 20
+  const nextDayLeaveBy = nextDayPlan && nextDayPlan.dayType !== 'Rest' ? getLeaveByTime(nextDayDate) : null
 
   async function handleRefreshHealth() {
     setRefreshingHealth(true)
@@ -740,11 +762,32 @@ export default function TodayClient({
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {leaveBy && displayEntry.date === viewDate && (
-                    <div className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg">
-                      <Clock size={11} />
-                      Leave by {leaveBy}
-                    </div>
+                  {effectiveLeaveBy && displayEntry.date === viewDate && (
+                    editingLeaveBy ? (
+                      <input
+                        type="time"
+                        defaultValue={runStartOverride ?? defaultRunStart ?? '06:30'}
+                        autoFocus
+                        className="text-xs border border-amber-200 rounded-lg px-2 py-1 bg-amber-50 text-amber-700 w-24"
+                        onBlur={e => {
+                          const val = e.target.value
+                          if (val) {
+                            setRunStartOverride(val)
+                            localStorage.setItem(`trainer-run-start-${today}`, val)
+                          }
+                          setEditingLeaveBy(false)
+                        }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditingLeaveBy(true)}
+                        className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg"
+                      >
+                        <Clock size={11} />
+                        Leave by {effectiveLeaveBy}
+                      </button>
+                    )
                   )}
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
                     {displayEntry.runType ?? displayEntry.dayType}
@@ -905,6 +948,41 @@ export default function TodayClient({
         )}
       </div>}
 
+      {/* Immediate post-run recovery prompt (#12) */}
+      {isPostRun && !recoveryDismissed && (
+        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-xs font-bold text-emerald-700 tracking-wide">RIGHT NOW</span>
+            <button
+              onClick={() => {
+                setRecoveryDismissed(true)
+                localStorage.setItem(`trainer-recovery-dismissed-${today}`, '1')
+              }}
+              className="text-xs text-emerald-500 hover:text-emerald-700 font-medium"
+            >
+              Done ✓
+            </button>
+          </div>
+          <ul className="space-y-1.5">
+            {isHardDay ? (
+              <>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span><strong>Eat within 20 min</strong> — carbs + protein, don&apos;t skip this window</span></li>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span>Hydrate — electrolytes if you were sweating hard</span></li>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span>Elevate legs for 10 min</span></li>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span>Foam roll quads, calves, IT band</span></li>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span>Ice anything that felt off during the effort</span></li>
+              </>
+            ) : (
+              <>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span><strong>Eat within 30 min</strong> — real food, not just coffee</span></li>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span>Hydrate</span></li>
+                <li className="flex items-start gap-2 text-sm text-emerald-900"><span className="shrink-0 mt-0.5">•</span><span>5-10 min light stretch or slow walk to cool down</span></li>
+              </>
+            )}
+          </ul>
+        </div>
+      )}
+
       {/* Post-workout coaching card — shown when activities are logged */}
       {hasActivities && displayEntry && displayEntry.date === viewDate && displayEntry.dayType !== 'Rest' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
@@ -1031,6 +1109,50 @@ export default function TodayClient({
             <span>Yoga <span className="font-semibold text-gray-600">{weekYoga}</span></span>
             {weekClimbing > 0 && <span>Climbing <span className="font-semibold text-gray-600">{weekClimbing}</span></span>}
           </div>
+        </div>
+      )}
+
+      {/* Night-before prep (#14) */}
+      {isNightMode && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <div className="px-5 pt-4 pb-3">
+            <div className="text-xs font-bold text-gray-400 tracking-wide mb-3">TOMORROW</div>
+            {!nextDayPlan || nextDayPlan.dayType === 'Rest' ? (
+              <p className="text-sm text-gray-600">Rest day — sleep in, no alarm pressure.</p>
+            ) : (
+              <>
+                <div className="text-lg font-bold text-gray-900 mb-1">
+                  {nextDayPlan.workout ?? nextDayPlan.runType ?? nextDayPlan.dayType}
+                </div>
+                <div className="flex flex-wrap gap-2 text-sm text-gray-500">
+                  {nextDayPlan.distance && <span className="font-semibold text-gray-700">{nextDayPlan.distance} mi</span>}
+                  {nextDayPlan.hrZone && <span>Zone {nextDayPlan.hrZone}</span>}
+                  {nextDayPlan.targetPace && <span>{nextDayPlan.targetPace} /mi</span>}
+                  {nextDayPlan.runType && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{nextDayPlan.runType}</span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          {nextDayPlan && nextDayPlan.dayType !== 'Rest' && (
+            <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
+              <div className="text-xs font-bold text-gray-400 tracking-wide mb-2.5">BEFORE SLEEP</div>
+              <div className="space-y-2 text-sm text-gray-600">
+                {[
+                  'Shoes + kit laid out',
+                  'Watch on charger',
+                  nextDayLeaveBy ? `Alarm set — leave by ${nextDayLeaveBy}` : 'Alarm set',
+                  'Water bottle filled',
+                ].map(item => (
+                  <div key={item} className="flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded border border-gray-300 shrink-0" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
