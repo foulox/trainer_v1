@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition, useEffect } from 'react'
 import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, CoachingNote, StravaActivity, CheckIn, LibraryWorkout } from '@/lib/data'
+import { RUN_START_TIMES, getLeaveByTime, computeLeaveByFromStart, computeTodayFlags } from '@/lib/today-flags'
 import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio, Clock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
@@ -113,34 +114,6 @@ function EffortScale({ mode }: { mode: string }) {
   )
 }
 
-// Run start times by day of week (0=Sun…6=Sat). Sunday is rest — no entry.
-const RUN_START_TIMES: Record<number, string> = {
-  1: '06:45', 2: '06:30', 3: '06:00', 4: '06:30', 5: '07:00', 6: '08:00',
-}
-
-function getLeaveByTime(isoDate: string): string | null {
-  const dow = new Date(isoDate + 'T00:00:00').getDay()
-  const start = RUN_START_TIMES[dow]
-  if (!start) return null
-  const [h, m] = start.split(':').map(Number)
-  const lm = h * 60 + m - 10
-  return `${Math.floor(lm / 60)}:${String(lm % 60).padStart(2, '0')}`
-}
-
-function computeLeaveByFromStart(startTime: string): string {
-  const [h, m] = startTime.split(':').map(Number)
-  const lm = h * 60 + m - 10
-  return `${Math.floor(lm / 60)}:${String(lm % 60).padStart(2, '0')}`
-}
-
-function isBeforeRunWindow(isoDate: string): boolean {
-  const dow = new Date(isoDate + 'T00:00:00').getDay()
-  const start = RUN_START_TIMES[dow]
-  if (!start) return false
-  const [h, m] = start.split(':').map(Number)
-  const now = new Date()
-  return now.getHours() * 60 + now.getMinutes() < h * 60 + m + 45
-}
 
 const MORNING_DIRECTIVES: Record<string, string> = {
   good:  "You're primed — try to get 5 minutes of dynamic stretching in before you go.",
@@ -275,7 +248,12 @@ export default function TodayClient({
 
   const isViewingToday = viewDate === today
   const hasActivities = viewLogs.length > 0
-  const isMorningWindow = isViewingToday && !isRestDay && !hasActivities && isBeforeRunWindow(today)
+  const _now = new Date()
+  const { isMorningWindow, isEveningMode, isPostRun, isAfternoon, showSyncPrompt, isNightMode } = computeTodayFlags({
+    isViewingToday, hasActivities, isRestDay, today,
+    currentHour: _now.getHours(),
+    currentMinutes: _now.getMinutes(),
+  })
   const defaultRunStart = RUN_START_TIMES[new Date(today + 'T00:00:00').getDay()] ?? null
   const leaveBy = isViewingToday && !isRestDay ? getLeaveByTime(today) : null
   const effectiveLeaveBy = runStartOverride ? computeLeaveByFromStart(runStartOverride) : leaveBy
@@ -296,10 +274,6 @@ export default function TodayClient({
   const todayClimbing = viewLogs.some(e => /climb|boulder/i.test(e.activityType))
   const isHardDay = note?.effortMode === 'hard' || note?.effortMode === 'race' ||
     displayEntry?.runType === 'Quality' || displayEntry?.dayType === 'Race'
-  const isEveningMode = isViewingToday && !isMorningWindow && (hasActivities || isRestDay)
-  const isPostRun = isViewingToday && hasActivities && !isRestDay
-  const isAfternoon = new Date().getHours() >= 13
-  const showSyncPrompt = isViewingToday && !isRestDay && !hasActivities && !isMorningWindow && isAfternoon
   const runLog = viewLogs.find(e => /run/i.test(e.activityType)) ?? viewLogs[0] ?? null
   const distanceDelta = runLog?.distance != null && displayEntry?.distance != null
     ? runLog.distance - displayEntry.distance : null
@@ -309,7 +283,6 @@ export default function TodayClient({
     return d.toISOString().slice(0, 10)
   })()
   const nextDayPlan = plan.find(e => e.date === nextDayDate) ?? null
-  const isNightMode = isViewingToday && isEveningMode && new Date().getHours() >= 20
   const nextDayLeaveBy = nextDayPlan && nextDayPlan.dayType !== 'Rest' ? getLeaveByTime(nextDayDate) : null
 
   async function handleRefreshHealth() {
