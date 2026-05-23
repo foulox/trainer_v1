@@ -11,7 +11,7 @@ export type ParsedCoachingResponse = {
 
 export function parseCoachingResponse(text: string): ParsedCoachingResponse {
   const verdictMatch = text.match(/^VERDICT:\s*(.+)/m)
-  const verdict = verdictMatch ? verdictMatch[1].trim() : ''
+  const verdict = verdictMatch ? verdictMatch[1].trim().replace(/\*+/g, '') : ''
 
   const readinessSummaryMatch = text.match(/## Readiness\nSUMMARY:\s*(.+)/m)
   const readinessSummary = readinessSummaryMatch ? readinessSummaryMatch[1].trim() : ''
