@@ -201,6 +201,13 @@ export default function WeekClient({
         )}
       </header>
 
+      {currentPhase?.goal && (
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+          <div className="text-xs font-bold text-blue-600 tracking-wide mb-1">{currentPhase.name.toUpperCase()}</div>
+          <div className="text-sm text-gray-700 leading-relaxed">{currentPhase.goal}</div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
         <div className="flex justify-between items-baseline mb-2">
           <div className="text-sm font-semibold text-gray-700">Mileage</div>
