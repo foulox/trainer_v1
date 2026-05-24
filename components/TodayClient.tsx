@@ -252,8 +252,15 @@ export default function TodayClient({
   const _now = new Date()
   const effectiveHour = demoHour ?? _now.getHours()
   const effectiveMinutes = demoHour != null ? 0 : _now.getMinutes()
-  // Morning demo mode simulates pre-run state — treat activities as not yet logged
-  const effectiveHasActivities = (demoHour != null && demoHour < 12) ? false : hasActivities
+  // Morning demo state suppresses activities to show the genuine pre-run layout
+  const DEMO_STATES = [
+    { label: 'Morning',  hour: 6,  suppressActivities: true },
+    { label: 'Post-run', hour: 11, suppressActivities: false },
+    { label: 'Evening',  hour: 18, suppressActivities: false },
+    { label: 'Night',    hour: 21, suppressActivities: false },
+  ] as const
+  const activeDemoState = DEMO_STATES.find(s => s.hour === demoHour) ?? null
+  const effectiveHasActivities = activeDemoState?.suppressActivities ? false : hasActivities
   const { isMorningWindow, isEveningMode, isPostRun, isAfternoon, showSyncPrompt, isNightMode } = computeTodayFlags({
     isViewingToday, hasActivities: effectiveHasActivities, isRestDay, today,
     currentHour: effectiveHour,
@@ -397,12 +404,6 @@ export default function TodayClient({
 
       {/* Demo scrubber — time-of-day override for showing the app to people */}
       {(() => {
-        const DEMO_STATES = [
-          { label: 'Morning', hour: 6 },
-          { label: 'Afternoon', hour: 14 },
-          { label: 'Evening', hour: 18 },
-          { label: 'Night', hour: 21 },
-        ] as const
         return (
           <div className="mb-4">
             <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors ${demoHour != null ? 'bg-violet-50 border-violet-200' : 'bg-gray-50 border-gray-100'}`}>
