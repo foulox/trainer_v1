@@ -170,3 +170,20 @@ export type CoachProfile = {
   credentials: string
   updatedAt: string
 }
+
+export const PLAYBOOK_TAGS = [
+  'Pacing', 'Threshold', 'Easy Running', 'Long Run', 'Recovery',
+  'Periodization', 'Race Prep', 'Mental', 'Strength', 'Nutrition',
+] as const
+
+export type PlaybookTag = typeof PLAYBOOK_TAGS[number]
+
+export type PlaybookQuote = {
+  id: string
+  quote: string
+  author: string
+  source: string
+  tags: PlaybookTag[]
+  note: string
+  createdAt: string
+}
