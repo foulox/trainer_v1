@@ -5,7 +5,7 @@ import type { PlannedWorkout, Phase, Race, HealthEntry, TrainingLogEntry, Coachi
 import { RUN_START_TIMES, getLeaveByTime, computeLeaveByFromStart, computeTodayFlags } from '@/lib/today-flags'
 import { Zap, Moon, Heart, RefreshCw, ChevronLeft, ChevronRight, MessageCircle, ChevronDown, ChevronUp, Activity, Smile, Radio, Clock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData } from '@/app/actions'
+import { syncStrava, regenerateCoachingNote, fetchCoachingNoteForDate, saveSleepScore, fetchPostWorkoutNoteForDate, refreshHealthData, logSupplementalActivity } from '@/app/actions'
 import ActivityDrawer from './ActivityDrawer'
 import CheckInDrawer from './CheckInDrawer'
 import ReactMarkdown from '@/components/Markdown'
@@ -121,6 +121,59 @@ const MORNING_DIRECTIVES: Record<string, string> = {
   rough: "Your body is asking for easy today — just move, no pressure on pace or effort.",
 }
 
+type SupplementalConfig = {
+  key: string
+  label: string
+  why: (ctx: { isHardDay: boolean; isRestDay: boolean }) => string
+  target: number
+  detect: RegExp | null
+}
+
+const SUPPLEMENTAL_ACTIVITIES: SupplementalConfig[] = [
+  {
+    key: 'Yoga',
+    label: 'Yoga',
+    why: ({ isHardDay, isRestDay }) =>
+      isHardDay ? 'Flush the legs, CNS recovery'
+      : isRestDay ? 'Full recovery focus'
+      : 'Recovery priority on easy days',
+    target: 4,
+    detect: /yoga/i,
+  },
+  {
+    key: 'Core',
+    label: 'Core',
+    why: () => 'Daily habit',
+    target: 4,
+    detect: /\bcore\b/i,
+  },
+  {
+    key: 'Upper body',
+    label: 'Upper body / Bouldering',
+    why: () => 'Once a week — bouldering counts',
+    target: 1,
+    detect: /climb|boulder|upper.body/i,
+  },
+  {
+    key: 'Lower body',
+    label: 'Lower body',
+    why: () => 'Twice a week — leg strength matters',
+    target: 2,
+    detect: /lower.body/i,
+  },
+  {
+    key: 'Balance',
+    label: 'Balance work',
+    why: () => 'Single-leg stability — running happens on one leg',
+    target: 3,
+    detect: /\bbalance\b/i,
+  },
+]
+
+function matchesActivity(e: TrainingLogEntry, act: SupplementalConfig): boolean {
+  return e.activityType === act.key || (act.detect !== null && act.detect.test(e.activityType))
+}
+
 function CheckCircle({ done }: { done: boolean }) {
   return (
     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${done ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'}`}>
@@ -133,16 +186,20 @@ function CheckCircle({ done }: { done: boolean }) {
   )
 }
 
-function EveningRow({ done, label, why, note }: { done: boolean; label: string; why?: string; note?: string }) {
+function EveningRow({ done, label, why, note, onClick }: { done: boolean; label: string; why?: string; note?: string; onClick?: () => void }) {
   return (
-    <div className={`flex items-start gap-3 ${done ? 'opacity-50' : ''}`}>
+    <button
+      className={`w-full flex items-start gap-3 text-left touch-manipulation ${done ? 'opacity-50' : ''}`}
+      onClick={!done ? onClick : undefined}
+      disabled={done || !onClick}
+    >
       <CheckCircle done={done} />
       <div>
         <div className={`text-sm font-semibold ${done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{label}</div>
         {!done && why && <div className="text-xs text-gray-400 mt-0.5">{why}</div>}
         {note && <div className="text-xs text-gray-300 mt-0.5">{note}</div>}
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -278,12 +335,24 @@ export default function TodayClient({
     return d.toISOString().slice(0, 10)
   })()
   const weekLogs = log.filter(e => e.date >= weekStartDate && e.date <= today)
-  const weekStrength = weekLogs.filter(e => /weight|strength|lift|gym/i.test(e.activityType)).length
-  const weekYoga    = weekLogs.filter(e => /yoga/i.test(e.activityType)).length
-  const weekClimbing = weekLogs.filter(e => /climb|boulder/i.test(e.activityType)).length
-  const todayYoga     = viewLogs.some(e => /yoga/i.test(e.activityType))
-  const todayStrength = viewLogs.some(e => /weight|strength|lift|gym/i.test(e.activityType))
-  const todayClimbing = viewLogs.some(e => /climb|boulder/i.test(e.activityType))
+  const [tapped, setTapped] = useState<Set<string>>(new Set())
+
+  function isDoneToday(act: SupplementalConfig): boolean {
+    if (tapped.has(act.key)) return true
+    if (!act.detect) return false
+    return viewLogs.some(e => matchesActivity(e, act))
+  }
+
+  function weekCount(act: SupplementalConfig): number {
+    const fromLog = weekLogs.filter(e => matchesActivity(e, act)).length
+    const alreadyInLog = viewLogs.some(e => matchesActivity(e, act))
+    return fromLog + (tapped.has(act.key) && !alreadyInLog ? 1 : 0)
+  }
+
+  async function handleSupplementalTap(act: SupplementalConfig) {
+    setTapped(prev => new Set([...prev, act.key]))
+    await logSupplementalActivity(today, act.key)
+  }
   const isHardDay = note?.effortMode === 'hard' || note?.effortMode === 'race' ||
     displayEntry?.runType === 'Quality' || displayEntry?.dayType === 'Race'
   const runLog = viewLogs.find(e => /run/i.test(e.activityType)) ?? viewLogs[0] ?? null
@@ -691,45 +760,37 @@ export default function TodayClient({
               )}
             </div>
             <div className="space-y-2.5">
-              {isHardDay && (
-                <EveningRow
-                  done={todayStrength}
-                  label="Leg workout"
-                  why="Compound today's training into the same recovery window"
-                  note={`${weekStrength}/2 this week`}
-                />
-              )}
-              <EveningRow
-                done={todayYoga}
-                label="Yoga"
-                why={isHardDay ? 'Flush the legs, CNS recovery' : isRestDay ? 'Full recovery focus' : 'Recovery priority on easy days'}
-                note={`${weekYoga} this week`}
-              />
-              <EveningRow done={false} label="Core" why="Daily habit" />
-              <EveningRow
-                done={todayClimbing || (!isHardDay && todayStrength)}
-                label="Upper body / Bouldering"
-                why="Once a week — bouldering counts"
-                note={`${weekClimbing}/1 this week`}
-              />
-              {!isHardDay && (
-                <EveningRow
-                  done={false}
-                  label="Balance work"
-                  why="Single-leg stability — running happens on one leg"
-                />
-              )}
+              {SUPPLEMENTAL_ACTIVITIES.map(act => {
+                const done = isDoneToday(act)
+                const count = weekCount(act)
+                return (
+                  <EveningRow
+                    key={act.key}
+                    done={done}
+                    label={act.label}
+                    why={act.why({ isHardDay, isRestDay })}
+                    note={`${count}/${act.target} this week`}
+                    onClick={() => handleSupplementalTap(act)}
+                  />
+                )
+              })}
             </div>
-            {!todayYoga && (
+            {!isDoneToday(SUPPLEMENTAL_ACTIVITIES[0]) && (
               <p className="mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400 leading-snug">
                 Not feeling 30 min? Balance board or 10 min stretching counts. Theragun + Normatec if you&apos;re spent.
               </p>
             )}
           </div>
-          <div className="border-t border-gray-100 px-5 py-2.5 flex gap-4 text-xs text-gray-400">
-            <span>Strength <span className="font-semibold text-gray-600">{weekStrength}/2</span></span>
-            <span>Yoga <span className="font-semibold text-gray-600">{weekYoga}</span></span>
-            {weekClimbing > 0 && <span>Climbing <span className="font-semibold text-gray-600">{weekClimbing}</span></span>}
+          <div className="border-t border-gray-100 px-5 py-2.5 flex gap-4 text-xs text-gray-400 flex-wrap">
+            {SUPPLEMENTAL_ACTIVITIES.map(act => {
+              const count = weekCount(act)
+              if (count === 0) return null
+              return (
+                <span key={act.key}>
+                  {act.label.split(' /')[0]} <span className="font-semibold text-gray-600">{count}/{act.target}</span>
+                </span>
+              )
+            })}
           </div>
         </div>
       )}
