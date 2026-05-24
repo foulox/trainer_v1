@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { X } from 'lucide-react'
+import { useState, useTransition, useRef } from 'react'
+import { X, Camera } from 'lucide-react'
 import { PLAYBOOK_TAGS, type PlaybookQuote, type PlaybookTag } from '@/lib/data'
-import { addPlaybookQuote } from '@/app/actions'
+import { addPlaybookQuote, extractQuoteFromImage } from '@/app/actions'
 
 type Props = {
   onClose: () => void
@@ -12,10 +12,31 @@ type Props = {
 
 const EMPTY = { quote: '', author: '', source: '', tags: [] as PlaybookTag[], note: '' }
 
+async function resizeImage(file: File, maxPx = 1200): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' })
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
 export default function PlaybookQuoteDrawer({ onClose, onSaved }: Props) {
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState<string | null>(null)
+  const [extracting, setExtracting] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function toggleTag(tag: PlaybookTag) {
     setForm(f => ({
@@ -26,6 +47,27 @@ export default function PlaybookQuoteDrawer({ onClose, onSaved }: Props) {
 
   function canSave() {
     return form.quote.trim() && form.author.trim() && form.source.trim()
+  }
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null)
+    setExtracting(true)
+    try {
+      const { base64, mimeType } = await resizeImage(file)
+      const result = await extractQuoteFromImage(base64, mimeType)
+      if (result.text) {
+        setForm(f => ({ ...f, quote: result.text! }))
+      } else {
+        setError(result.error ?? 'Could not extract text — try typing it manually')
+      }
+    } catch {
+      setError('Could not read photo — try typing the quote manually')
+    } finally {
+      setExtracting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   function handleSave() {
@@ -58,13 +100,32 @@ export default function PlaybookQuoteDrawer({ onClose, onSaved }: Props) {
         <div className="space-y-4">
           {/* Quote */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Quote</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700">Quote</label>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={extracting}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 disabled:opacity-40"
+              >
+                <Camera size={14} />
+                {extracting ? 'Reading photo…' : 'From photo'}
+              </button>
+            </div>
             <textarea
               value={form.quote}
               onChange={e => setForm(f => ({ ...f, quote: e.target.value }))}
-              placeholder="Paste or type the quote..."
+              placeholder={extracting ? 'Reading your photo…' : 'Paste or type the quote...'}
               rows={4}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none resize-none"
+              disabled={extracting}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none resize-none disabled:bg-gray-50"
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhoto}
             />
           </div>
 
@@ -131,7 +192,7 @@ export default function PlaybookQuoteDrawer({ onClose, onSaved }: Props) {
 
           <button
             onClick={handleSave}
-            disabled={!canSave() || isPending}
+            disabled={!canSave() || isPending || extracting}
             className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white disabled:opacity-40 transition-colors"
           >
             {isPending ? 'Saving…' : 'Save Quote'}

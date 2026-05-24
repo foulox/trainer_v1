@@ -613,3 +613,39 @@ export async function removePlaybookQuote(id: string): Promise<{ success: boolea
     return { success: false, error: e instanceof Error ? e.message : 'Failed to delete quote' }
   }
 }
+
+export async function extractQuoteFromImage(
+  base64Image: string,
+  mimeType: string,
+): Promise<{ text?: string; error?: string }> {
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default
+    const client = new Anthropic()
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+              data: base64Image,
+            },
+          },
+          {
+            type: 'text',
+            text: 'This is a photograph of a printed page from a coaching or training book. Extract the most meaningful and complete passage visible — the kind a coach would want to quote verbatim. Return only the exact text of that passage, nothing else. No commentary, no introduction, no punctuation changes. Just the verbatim text.',
+          },
+        ],
+      }],
+    })
+    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    if (!text) return { error: 'No text found in photo' }
+    return { text }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to extract text from photo' }
+  }
+}

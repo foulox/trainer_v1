@@ -507,6 +507,248 @@ export default function TodayClient({
         </div>
       )}
 
+      {isRestDay ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+          <div className="p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
+                  {isViewingToday ? 'TODAY' : 'THIS DAY'} · REST
+                </div>
+                <div className="text-xl font-bold text-gray-900">Recovery Day</div>
+                {viewPhase && (
+                  <div className="text-sm text-gray-500 mt-0.5">{viewPhase.name}</div>
+                )}
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 shrink-0">Rest</span>
+            </div>
+            {note?.verdict && (
+              <p className="text-sm text-gray-600 mt-3 leading-relaxed">{note.verdict}</p>
+            )}
+          </div>
+          {tomorrowWorkout && (
+            <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
+              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1.5">TOMORROW</div>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">
+                    {tomorrowWorkout.workout ?? tomorrowWorkout.runType ?? tomorrowWorkout.dayType}
+                  </div>
+                  {(tomorrowWorkout.distance || tomorrowWorkout.targetPace || tomorrowWorkout.hrZone) && (
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {[
+                        tomorrowWorkout.distance && `${tomorrowWorkout.distance} mi`,
+                        tomorrowWorkout.targetPace && `${tomorrowWorkout.targetPace} /mi`,
+                        tomorrowWorkout.hrZone && `Z${tomorrowWorkout.hrZone}`,
+                      ].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-600 shrink-0 whitespace-nowrap">
+                  {tomorrowWorkout.runType ?? tomorrowWorkout.dayType}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : displayEntry ? (
+        isPostRun ? (
+          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm overflow-hidden mb-4`}>
+            <div className="p-5">
+              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">DONE</div>
+              <div className="text-xl font-bold text-gray-900 mb-3">
+                {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3">
+                  <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Planned</span>
+                  <span className="text-sm text-gray-500">
+                    {[
+                      displayEntry.distance && `${displayEntry.distance} mi`,
+                      displayEntry.targetPace && `${displayEntry.targetPace} /mi`,
+                      displayEntry.hrZone && `Z${displayEntry.hrZone}`,
+                      viewPhase?.name,
+                    ].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+                {runLog && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Actual</span>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {[
+                        runLog.distance && `${runLog.distance} mi`,
+                        runLog.pace && `${runLog.pace} /mi`,
+                        runLog.duration && `${runLog.duration} min`,
+                        runLog.avgHr && `${runLog.avgHr} bpm`,
+                      ].filter(Boolean).join(' · ')}
+                      {distanceDelta != null && Math.abs(distanceDelta) > 0.5 && (
+                        <span className={`ml-2 text-xs font-normal ${distanceDelta > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          ({distanceDelta > 0 ? '+' : ''}{distanceDelta.toFixed(1)} mi)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Signal — embedded at bottom, hidden until tapped */}
+            <div className="border-t border-gray-100">
+              <button
+                onClick={() => setPostWorkoutExpanded(v => !v)}
+                className="w-full px-5 py-3 flex items-center justify-between text-left bg-gray-50 touch-manipulation"
+              >
+                <div className="flex items-center gap-2">
+                  <Radio size={13} className="text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-700 tracking-wide">The Signal</span>
+                  <span className="text-xs text-emerald-500">Asst. Coach</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span onClick={e => { e.stopPropagation(); handleGeneratePostNote() }}>
+                    <RefreshCw size={12} className={`text-emerald-400 hover:text-emerald-600 ${postNoteLoading ? 'animate-spin' : ''}`} />
+                  </span>
+                  {postWorkoutExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                </div>
+              </button>
+              {postWorkoutExpanded && (
+                <div className="px-5 pb-5 pt-3 bg-emerald-50">
+                  {postNoteLoading ? (
+                    <p className="text-sm text-gray-400 italic">Generating...</p>
+                  ) : postNote ? (
+                    <>
+                      {postNote.verdict && (
+                        <p className="text-sm text-emerald-900 leading-snug mb-3">{postNote.verdict.replace(/\*+/g, '')}</p>
+                      )}
+                      <div className="prose prose-sm prose-slate max-w-none">
+                        <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Tap ↻ to generate analysis.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm overflow-hidden mb-4`}>
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
+                    {displayEntry.date === viewDate
+                      ? (isViewingToday ? 'TODAY' : 'THIS DAY')
+                      : `NEXT UP · ${new Date(displayEntry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {effectiveLeaveBy && displayEntry.date === viewDate && (
+                    editingLeaveBy ? (
+                      <input
+                        type="time"
+                        defaultValue={runStartOverride ?? defaultRunStart ?? '06:30'}
+                        autoFocus
+                        className="text-xs border border-amber-200 rounded-lg px-2 py-1 bg-amber-50 text-amber-700 w-24"
+                        onBlur={e => {
+                          const val = e.target.value
+                          if (val) {
+                            setRunStartOverride(val)
+                            localStorage.setItem(`trainer-run-start-${today}`, val)
+                          }
+                          setEditingLeaveBy(false)
+                        }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditingLeaveBy(true)}
+                        className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg"
+                      >
+                        <Clock size={11} />
+                        Leave by {effectiveLeaveBy}
+                      </button>
+                    )
+                  )}
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
+                    {displayEntry.runType ?? displayEntry.dayType}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
+                {displayEntry.distance && <span className="font-semibold text-gray-700">{displayEntry.distance} mi</span>}
+                {displayEntry.hrZone && <span>Zone {displayEntry.hrZone}</span>}
+                {displayEntry.targetPace && <span>{displayEntry.targetPace} /mi</span>}
+                {viewPhase && <span>{viewPhase.name}</span>}
+              </div>
+              {workoutInstructions && (() => {
+                const firstLine = workoutInstructions.split(/\n|\.(?:\s|$)/)[0].trim()
+                const hasMore = workoutInstructions.length > firstLine.length + 1
+                return (
+                  <div className="mb-3">
+                    <div className="text-sm text-gray-800 leading-relaxed font-mono">
+                      {instructionsExpanded ? workoutInstructions : firstLine}
+                    </div>
+                    {hasMore && (
+                      <button
+                        onClick={() => setInstructionsExpanded(v => !v)}
+                        className="mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-0.5"
+                      >
+                        {instructionsExpanded ? <><ChevronUp size={12} /> Less</> : <><ChevronDown size={12} /> Full workout</>}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+              {workoutReason && (
+                <button
+                  onClick={() => setReasonExpanded(v => !v)}
+                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-3"
+                >
+                  <span>Why this workout</span>
+                  <span>{reasonExpanded ? '▴' : '▾'}</span>
+                </button>
+              )}
+              {workoutReason && reasonExpanded && (
+                <div className="text-sm text-gray-500 leading-relaxed mb-3 pl-2 border-l-2 border-gray-100">
+                  {workoutReason}
+                </div>
+              )}
+            </div>
+            {showSyncPrompt && (
+              <div className="border-t border-amber-100 bg-amber-50 px-5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-amber-700">After 1pm — did you run this morning?</span>
+                  <button
+                    onClick={handleSync}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 disabled:opacity-40"
+                  >
+                    <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
+                    {syncing ? 'Syncing…' : 'Sync Strava'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+          <div className="text-sm text-gray-400 italic">No workout scheduled.</div>
+        </div>
+      )}
+
+      {displayEntry && displayEntry.notes && displayEntry.date === viewDate && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Smile size={14} className="text-indigo-400" />
+            <div className="text-xs font-bold text-indigo-500 tracking-wide">Coach FouLox</div>
+          </div>
+          <p className="text-sm text-indigo-900 leading-relaxed">{displayEntry.notes}</p>
+        </div>
+      )}
+
       {/* Morning directive — shown after check-in completes (#9) */}
       {isMorningWindow && morningFeel && (
         <div className="mb-4 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
@@ -792,248 +1034,6 @@ export default function TodayClient({
               )
             })}
           </div>
-        </div>
-      )}
-
-      {isRestDay ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
-          <div className="p-5">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
-                  {isViewingToday ? 'TODAY' : 'THIS DAY'} · REST
-                </div>
-                <div className="text-xl font-bold text-gray-900">Recovery Day</div>
-                {viewPhase && (
-                  <div className="text-sm text-gray-500 mt-0.5">{viewPhase.name}</div>
-                )}
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 shrink-0">Rest</span>
-            </div>
-            {note?.verdict && (
-              <p className="text-sm text-gray-600 mt-3 leading-relaxed">{note.verdict}</p>
-            )}
-          </div>
-          {tomorrowWorkout && (
-            <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
-              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1.5">TOMORROW</div>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold text-gray-800">
-                    {tomorrowWorkout.workout ?? tomorrowWorkout.runType ?? tomorrowWorkout.dayType}
-                  </div>
-                  {(tomorrowWorkout.distance || tomorrowWorkout.targetPace || tomorrowWorkout.hrZone) && (
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {[
-                        tomorrowWorkout.distance && `${tomorrowWorkout.distance} mi`,
-                        tomorrowWorkout.targetPace && `${tomorrowWorkout.targetPace} /mi`,
-                        tomorrowWorkout.hrZone && `Z${tomorrowWorkout.hrZone}`,
-                      ].filter(Boolean).join(' · ')}
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-600 shrink-0 whitespace-nowrap">
-                  {tomorrowWorkout.runType ?? tomorrowWorkout.dayType}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : displayEntry ? (
-        isPostRun ? (
-          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm overflow-hidden mb-4`}>
-            <div className="p-5">
-              <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">DONE</div>
-              <div className="text-xl font-bold text-gray-900 mb-3">
-                {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-start gap-3">
-                  <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Planned</span>
-                  <span className="text-sm text-gray-500">
-                    {[
-                      displayEntry.distance && `${displayEntry.distance} mi`,
-                      displayEntry.targetPace && `${displayEntry.targetPace} /mi`,
-                      displayEntry.hrZone && `Z${displayEntry.hrZone}`,
-                      viewPhase?.name,
-                    ].filter(Boolean).join(' · ')}
-                  </span>
-                </div>
-                {runLog && (
-                  <div className="flex items-start gap-3">
-                    <span className="text-xs font-semibold text-gray-400 w-14 shrink-0 pt-0.5">Actual</span>
-                    <div className="text-sm font-semibold text-gray-900">
-                      {[
-                        runLog.distance && `${runLog.distance} mi`,
-                        runLog.pace && `${runLog.pace} /mi`,
-                        runLog.duration && `${runLog.duration} min`,
-                        runLog.avgHr && `${runLog.avgHr} bpm`,
-                      ].filter(Boolean).join(' · ')}
-                      {distanceDelta != null && Math.abs(distanceDelta) > 0.5 && (
-                        <span className={`ml-2 text-xs font-normal ${distanceDelta > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          ({distanceDelta > 0 ? '+' : ''}{distanceDelta.toFixed(1)} mi)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Signal — embedded at bottom, hidden until tapped */}
-            <div className="border-t border-gray-100">
-              <button
-                onClick={() => setPostWorkoutExpanded(v => !v)}
-                className="w-full px-5 py-3 flex items-center justify-between text-left bg-gray-50 touch-manipulation"
-              >
-                <div className="flex items-center gap-2">
-                  <Radio size={13} className="text-emerald-600" />
-                  <span className="text-xs font-bold text-emerald-700 tracking-wide">The Signal</span>
-                  <span className="text-xs text-emerald-500">Asst. Coach</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span onClick={e => { e.stopPropagation(); handleGeneratePostNote() }}>
-                    <RefreshCw size={12} className={`text-emerald-400 hover:text-emerald-600 ${postNoteLoading ? 'animate-spin' : ''}`} />
-                  </span>
-                  {postWorkoutExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                </div>
-              </button>
-              {postWorkoutExpanded && (
-                <div className="px-5 pb-5 pt-3 bg-emerald-50">
-                  {postNoteLoading ? (
-                    <p className="text-sm text-gray-400 italic">Generating...</p>
-                  ) : postNote ? (
-                    <>
-                      {postNote.verdict && (
-                        <p className="text-sm text-emerald-900 leading-snug mb-3">{postNote.verdict.replace(/\*+/g, '')}</p>
-                      )}
-                      <div className="prose prose-sm prose-slate max-w-none">
-                        <ReactMarkdown>{postNote.coachingTake}</ReactMarkdown>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic">Tap ↻ to generate analysis.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${runTypeBorderColor(displayEntry)} shadow-sm overflow-hidden mb-4`}>
-            <div className="p-5">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div>
-                  <div className="text-xs font-bold text-gray-400 tracking-wide mb-1">
-                    {displayEntry.date === viewDate
-                      ? (isViewingToday ? 'TODAY' : 'THIS DAY')
-                      : `NEXT UP · ${new Date(displayEntry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
-                  </div>
-                  <div className="text-xl font-bold text-gray-900">
-                    {displayEntry.workout ?? displayEntry.runType ?? displayEntry.dayType}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {effectiveLeaveBy && displayEntry.date === viewDate && (
-                    editingLeaveBy ? (
-                      <input
-                        type="time"
-                        defaultValue={runStartOverride ?? defaultRunStart ?? '06:30'}
-                        autoFocus
-                        className="text-xs border border-amber-200 rounded-lg px-2 py-1 bg-amber-50 text-amber-700 w-24"
-                        onBlur={e => {
-                          const val = e.target.value
-                          if (val) {
-                            setRunStartOverride(val)
-                            localStorage.setItem(`trainer-run-start-${today}`, val)
-                          }
-                          setEditingLeaveBy(false)
-                        }}
-                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => setEditingLeaveBy(true)}
-                        className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg"
-                      >
-                        <Clock size={11} />
-                        Leave by {effectiveLeaveBy}
-                      </button>
-                    )
-                  )}
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
-                    {displayEntry.runType ?? displayEntry.dayType}
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
-                {displayEntry.distance && <span className="font-semibold text-gray-700">{displayEntry.distance} mi</span>}
-                {displayEntry.hrZone && <span>Zone {displayEntry.hrZone}</span>}
-                {displayEntry.targetPace && <span>{displayEntry.targetPace} /mi</span>}
-                {viewPhase && <span>{viewPhase.name}</span>}
-              </div>
-              {workoutInstructions && (() => {
-                const firstLine = workoutInstructions.split(/\n|\.(?:\s|$)/)[0].trim()
-                const hasMore = workoutInstructions.length > firstLine.length + 1
-                return (
-                  <div className="mb-3">
-                    <div className="text-sm text-gray-800 leading-relaxed font-mono">
-                      {instructionsExpanded ? workoutInstructions : firstLine}
-                    </div>
-                    {hasMore && (
-                      <button
-                        onClick={() => setInstructionsExpanded(v => !v)}
-                        className="mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-0.5"
-                      >
-                        {instructionsExpanded ? <><ChevronUp size={12} /> Less</> : <><ChevronDown size={12} /> Full workout</>}
-                      </button>
-                    )}
-                  </div>
-                )
-              })()}
-              {workoutReason && (
-                <button
-                  onClick={() => setReasonExpanded(v => !v)}
-                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-3"
-                >
-                  <span>Why this workout</span>
-                  <span>{reasonExpanded ? '▴' : '▾'}</span>
-                </button>
-              )}
-              {workoutReason && reasonExpanded && (
-                <div className="text-sm text-gray-500 leading-relaxed mb-3 pl-2 border-l-2 border-gray-100">
-                  {workoutReason}
-                </div>
-              )}
-            </div>
-            {showSyncPrompt && (
-              <div className="border-t border-amber-100 bg-amber-50 px-5 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-amber-700">After 1pm — did you run this morning?</span>
-                  <button
-                    onClick={handleSync}
-                    disabled={syncing}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 disabled:opacity-40"
-                  >
-                    <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
-                    {syncing ? 'Syncing…' : 'Sync Strava'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
-          <div className="text-sm text-gray-400 italic">No workout scheduled.</div>
-        </div>
-      )}
-
-      {displayEntry && displayEntry.notes && displayEntry.date === viewDate && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Smile size={14} className="text-indigo-400" />
-            <div className="text-xs font-bold text-indigo-500 tracking-wide">Coach FouLox</div>
-          </div>
-          <p className="text-sm text-indigo-900 leading-relaxed">{displayEntry.notes}</p>
         </div>
       )}
 
