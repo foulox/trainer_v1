@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv'
-import type { CoachingNote, WeekReview, CheckIn, CoachProfile } from './data'
+import type { CoachingNote, WeekReview, CheckIn, CoachProfile, PlaybookQuote } from './data'
 
 export async function getCoachingNote(date: string): Promise<CoachingNote | null> {
   return kv.get<CoachingNote>(`coaching:${date}`)
@@ -43,4 +43,16 @@ export async function getCoachProfile(): Promise<CoachProfile | null> {
 
 export async function setCoachProfile(profile: CoachProfile): Promise<void> {
   await kv.set('coach:profile', profile)
+}
+
+export async function getPlaybookQuotes(): Promise<PlaybookQuote[]> {
+  try {
+    return await kv.get<PlaybookQuote[]>('coach:playbook:quotes') ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function savePlaybookQuotes(quotes: PlaybookQuote[]): Promise<void> {
+  await kv.set('coach:playbook:quotes', quotes)
 }

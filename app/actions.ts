@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
 import { generateCoachingNote, generateRestDayNote, generatePostWorkoutNote, generatePTSummaryForRange, generateWeekReview, sendCheckInMessage } from '@/lib/ai'
-import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview, setCoachProfile } from '@/lib/kv'
-import type { CoachingNote, WeekReview, CheckInMessage, CoachProfile } from '@/lib/data'
+import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview, setCoachProfile, getPlaybookQuotes, savePlaybookQuotes } from '@/lib/kv'
+import type { CoachingNote, WeekReview, CheckInMessage, CoachProfile, PlaybookQuote } from '@/lib/data'
 
 export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNote | null> {
   try {
@@ -586,5 +586,30 @@ export async function saveCoachProfile(profile: CoachProfile): Promise<{ success
     return { success: true }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Failed to save profile' }
+  }
+}
+
+export async function addPlaybookQuote(quote: Omit<PlaybookQuote, 'id' | 'createdAt'>): Promise<{ success: boolean; quote?: PlaybookQuote; error?: string }> {
+  try {
+    const quotes = await getPlaybookQuotes()
+    const newQuote: PlaybookQuote = {
+      ...quote,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    }
+    await savePlaybookQuotes([newQuote, ...quotes])
+    return { success: true, quote: newQuote }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to save quote' }
+  }
+}
+
+export async function removePlaybookQuote(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const quotes = await getPlaybookQuotes()
+    await savePlaybookQuotes(quotes.filter(q => q.id !== id))
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to delete quote' }
   }
 }
