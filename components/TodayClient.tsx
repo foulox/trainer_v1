@@ -252,8 +252,10 @@ export default function TodayClient({
   const _now = new Date()
   const effectiveHour = demoHour ?? _now.getHours()
   const effectiveMinutes = demoHour != null ? 0 : _now.getMinutes()
+  // Morning demo mode simulates pre-run state — treat activities as not yet logged
+  const effectiveHasActivities = (demoHour != null && demoHour < 12) ? false : hasActivities
   const { isMorningWindow, isEveningMode, isPostRun, isAfternoon, showSyncPrompt, isNightMode } = computeTodayFlags({
-    isViewingToday, hasActivities, isRestDay, today,
+    isViewingToday, hasActivities: effectiveHasActivities, isRestDay, today,
     currentHour: effectiveHour,
     currentMinutes: effectiveMinutes,
   })
