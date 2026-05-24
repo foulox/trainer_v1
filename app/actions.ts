@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
 import { generateCoachingNote, generateRestDayNote, generatePostWorkoutNote, generatePTSummaryForRange, generateWeekReview, sendCheckInMessage } from '@/lib/ai'
-import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview } from '@/lib/kv'
-import type { CoachingNote, WeekReview, CheckInMessage } from '@/lib/data'
+import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview, setCoachProfile } from '@/lib/kv'
+import type { CoachingNote, WeekReview, CheckInMessage, CoachProfile } from '@/lib/data'
 
 export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNote | null> {
   try {
@@ -578,4 +578,13 @@ export async function createFeedbackIssue(data: {
 
   const issue = await res.json() as { html_url: string }
   return { url: issue.html_url }
+}
+
+export async function saveCoachProfile(profile: CoachProfile): Promise<{ success: boolean; error?: string }> {
+  try {
+    await setCoachProfile({ ...profile, updatedAt: new Date().toISOString() })
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to save profile' }
+  }
 }
