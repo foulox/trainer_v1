@@ -58,11 +58,12 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 ```
 
-## Screens (Bottom Nav — 4 tabs)
+## Screens (Bottom Nav — 5 tabs)
 1. **Today** (`/`) — Planned workout, AI coaching note (why it matters today), Apple Health snapshot (HRV/sleep), days to next race
 2. **Week** (`/week`) — This week's plan vs. actual, AI week-in-review, one-tap PT summary copy
 3. **Plan** (`/plan`) — Three sub-tabs: Weeks, Phases, Races
 4. **Library** (`/library`) — Workout library; add easy runs, long runs, quality workouts
+5. **Coach** (`/coach`) — Coach profile (name, philosophy, influences, credentials), persisted to Vercel KV under `coach:profile`; Feedback link lives here
 
 ## Plan Tab — Sub-tabs
 
