@@ -114,8 +114,9 @@ export default function WeekClient({
   const isCurrentWeek = viewWeekStart === initialWeekStart
 
   const plannedMiles = weekPlan.reduce((s, e) => s + (e.distance ?? 0), 0)
-  const actualMiles = weekLog.reduce((s, e) => s + (e.distance ?? 0), 0)
-  const pct = plannedMiles > 0 ? Math.min(100, Math.round((actualMiles / plannedMiles) * 100)) : 0
+  const runMiles = weekLog.filter(e => /run/i.test(e.activityType)).reduce((s, e) => s + (e.distance ?? 0), 0)
+  const bikeMiles = weekLog.filter(e => /ride/i.test(e.activityType)).reduce((s, e) => s + (e.distance ?? 0), 0)
+  const pct = plannedMiles > 0 ? Math.min(100, Math.round((runMiles / plannedMiles) * 100)) : 0
 
   async function navigateWeek(newStart: string) {
     if (newStart < minWeekStart || newStart > maxWeekStart) return
@@ -203,7 +204,10 @@ export default function WeekClient({
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
         <div className="flex justify-between items-baseline mb-2">
           <div className="text-sm font-semibold text-gray-700">Mileage</div>
-          <div className="text-sm text-gray-500">{actualMiles.toFixed(1)} / {plannedMiles.toFixed(1)} mi</div>
+          <div className="text-sm text-gray-500">
+            Run {runMiles.toFixed(1)} / {plannedMiles.toFixed(1)} mi
+            {bikeMiles > 0 && <span className="ml-2 text-gray-400">· Bike {bikeMiles.toFixed(1)} mi</span>}
+          </div>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
           <div
@@ -248,7 +252,7 @@ export default function WeekClient({
                     <div className="text-right shrink-0">
                       <div className="text-sm font-semibold text-emerald-600">{totalActualMi.toFixed(1)} mi</div>
                       <div className="text-xs text-gray-400">
-                        {dayLogs.reduce((s, l) => s + (l.duration ?? 0), 0)} min
+                        {dayLogs.reduce((s, l) => s + (l.duration ?? 0), 0).toFixed(1)} min
                       </div>
                     </div>
                   ) : isPast && entry.dayType !== 'Rest' ? (
