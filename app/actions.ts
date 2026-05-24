@@ -372,6 +372,30 @@ export async function saveSleepScore(date: string, score: number): Promise<void>
   regenerateCoachingNote(date).catch(() => {})
 }
 
+export async function logSupplementalActivity(date: string, activityType: string): Promise<void> {
+  await fetch(process.env.LOG_SHEETS_URL!, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'appendLog',
+      data: {
+        'Date': date,
+        'Activity Type': activityType,
+        'Source': 'Manual',
+        'Day': '', 'Week#': '', 'Phase': '',
+        'Distance (mi)': '', 'Duration (min)': '', 'Pace (min/mi)': '',
+        'Avg HR': '', 'Max HR': '', 'Elevation (ft)': '', 'RPE': '',
+        'Effort Feel': '', 'Post-Run Feel': '', 'Strava ID': '',
+        'Injury / Body Notes': '', 'Notes': '',
+        'Zone1 (min)': '', 'Zone2 (min)': '', 'Zone3 (min)': '',
+        'Zone4 (min)': '', 'Zone5 (min)': '',
+      },
+    }),
+    cache: 'no-store',
+  })
+  revalidatePath('/')
+}
+
 export async function refreshHealthData(): Promise<void> {
   revalidatePath('/')
 }
