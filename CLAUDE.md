@@ -148,6 +148,57 @@ All sheet fetches use `{ next: { revalidate: 300 } }`. Manually editing the shee
 ### Library sport normalization
 The Workout Library uses "Running" as the sport name; the app normalizes to "Run" via `normalizeSport()` in `lib/sheets.ts`. Without this, the library picker shows no workouts for Run days.
 
+## Development Workflow
+
+Claude is the primary developer on this project. Each new Claude session is a fresh context — treat it like a new developer joining the team. The GitHub history, PRs, and issues are the institutional memory that orients each session.
+
+### PR-per-story workflow
+Every story ships as a PR, not a direct commit to `main`:
+
+1. **Pick a story** from the open GitHub issues (e.g. #27)
+2. **Branch**: `story/27-sport-split-mileage` (pattern: `story/<number>-<short-slug>`)
+3. **Build** the story, referencing AC from the issue
+4. **Self-review** before opening the PR (see below)
+5. **Open PR** with `closes #27` in the body — GitHub auto-links commits and auto-closes on merge
+6. **Vercel builds a preview URL** — Lou tests on mobile before anything hits production
+7. **Prompt Lou to run `/ultrareview`** on any PR touching more than one file (see below)
+8. **Lou reviews and merges** — production deploys automatically
+
+### Self-review before every PR (mandatory)
+Before opening a PR, Claude must review its own diff and check:
+- [ ] Does the implementation match every AC in the story?
+- [ ] Are there edge cases the AC doesn't cover that could break in production?
+- [ ] Any security issues — unvalidated input, exposed secrets, injection risks?
+- [ ] Consistent with project conventions (server components, sheet write patterns, Tailwind classes)?
+- [ ] TypeScript clean — run `npx tsc --noEmit` and confirm zero errors
+- [ ] No dead code, debug logs, or temporary hacks left in
+
+If anything fails, fix it before opening the PR.
+
+### `/ultrareview` rule
+After opening a PR that touches **more than one file**, always tell Lou:
+
+> "This PR touches X files. Run `/ultrareview <PR number>` before merging for an independent code review."
+
+Lou runs `/ultrareview` in the Claude Code interface — it launches a multi-agent review of the PR diff and reports back. This is the code review step that catches what functional testing misses.
+
+Single-file PRs (like a one-line bug fix) can skip `/ultrareview` at Lou's discretion.
+
+### Lou's role — BA + QA, not code reviewer
+Lou reviews features functionally (does it work on mobile?) and as a BA (does it match what was specified?). Claude is responsible for code quality, security, and implementation correctness — that's what self-review and `/ultrareview` are for.
+
+### Why this matters
+- A fresh Claude session runs `gh pr list` and `gh issue list` to orient immediately
+- Lou reviews every change before it reaches production (Vercel preview URL)
+- Git history stays clean and traceable — each commit links to a story and its acceptance criteria
+- Rollback is clean — a story is the unit of change
+
+### GitHub label ownership
+The `ready-to-build` label is Lou's to apply — it means Lou has reviewed the story and cleared it to build. Claude must never add this label when creating or editing issues. Use only descriptive labels (`story`, `epic`, `coaching`, `bug`, `backlog`, etc.) when filing issues.
+
+### Never commit directly to main
+All code changes go through a PR. The only exception is CLAUDE.md updates and documentation.
+
 ## Deployment Status
 - **Live at**: https://trainerv1.vercel.app
 - **Vercel project**: fouloxs-projects/trainer_v1 (linked via CLI, auto-deploys from `main`)
@@ -159,6 +210,14 @@ The Workout Library uses "Running" as the sport name; the app normalizes to "Run
 - Mobile-first: this is used on the phone during/after runs
 - Single user for now (Lou), but data model and auth built for multi-user expansion
 - Plan building happens in the Google Sheet — the app is read + light write (log a workout, swap a workout)
+
+## Product Vision
+
+This is not a generic training app. Apps like Runna give athletes an algorithm with no real coach behind it. This app is different: it pairs real coaching intelligence with AI — the coach sets intent, the AI amplifies it, the athlete feels the difference.
+
+The goal is to build something athletes and coaches genuinely trust, where the AI voice sounds like a coach who knows you, not a fitness chatbot. Every feature decision should serve that vision.
+
+**Hold the quality bar high.** If a feature feels generic, it probably is. Ask why this week's note matters to *this* athlete on *this* day. That's the standard.
 
 ## Future Direction
 - Multi-athlete / multi-coach support (Clerk orgs)

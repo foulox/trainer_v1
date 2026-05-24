@@ -162,3 +162,11 @@ export type WeekReview = {
   summary: string
   ptSummary: string
 }
+
+export type CoachProfile = {
+  name: string
+  philosophy: string
+  influences: string[]
+  credentials: string
+  updatedAt: string
+}
