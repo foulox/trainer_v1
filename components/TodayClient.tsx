@@ -200,6 +200,7 @@ export default function TodayClient({
   const [runStartOverride, setRunStartOverride] = useState<string | null>(null)
   const [editingLeaveBy, setEditingLeaveBy] = useState(false)
   const [recoveryDismissed, setRecoveryDismissed] = useState(false)
+  const [demoHour, setDemoHour] = useState<number | null>(null)
 
   useEffect(() => {
     const stored = localStorage.getItem(`trainer-morning-${today}`)
@@ -249,10 +250,12 @@ export default function TodayClient({
   const isViewingToday = viewDate === today
   const hasActivities = viewLogs.length > 0
   const _now = new Date()
+  const effectiveHour = demoHour ?? _now.getHours()
+  const effectiveMinutes = demoHour != null ? 0 : _now.getMinutes()
   const { isMorningWindow, isEveningMode, isPostRun, isAfternoon, showSyncPrompt, isNightMode } = computeTodayFlags({
     isViewingToday, hasActivities, isRestDay, today,
-    currentHour: _now.getHours(),
-    currentMinutes: _now.getMinutes(),
+    currentHour: effectiveHour,
+    currentMinutes: effectiveMinutes,
   })
   const defaultRunStart = RUN_START_TIMES[new Date(today + 'T00:00:00').getDay()] ?? null
   const leaveBy = isViewingToday && !isRestDay ? getLeaveByTime(today) : null
@@ -389,6 +392,41 @@ export default function TodayClient({
           </button>
         )}
       </header>
+
+      {/* Demo scrubber — time-of-day override for showing the app to people */}
+      {(() => {
+        const DEMO_STATES = [
+          { label: 'Morning', hour: 6 },
+          { label: 'Afternoon', hour: 14 },
+          { label: 'Evening', hour: 18 },
+          { label: 'Night', hour: 21 },
+        ] as const
+        return (
+          <div className="mb-4">
+            <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors ${demoHour != null ? 'bg-violet-50 border-violet-200' : 'bg-gray-50 border-gray-100'}`}>
+              <span className={`text-[10px] font-bold tracking-widest uppercase mr-1 shrink-0 ${demoHour != null ? 'text-violet-500' : 'text-gray-300'}`}>
+                Demo
+              </span>
+              {DEMO_STATES.map(({ label, hour }) => {
+                const active = demoHour === hour
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setDemoHour(active ? null : hour)}
+                    className={`flex-1 text-xs font-semibold py-1 rounded-lg transition-colors ${
+                      active
+                        ? 'bg-violet-600 text-white'
+                        : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {viewRace && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm">
