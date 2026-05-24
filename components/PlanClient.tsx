@@ -441,10 +441,12 @@ export default function PlanClient({ plan, phases, races, library, today }: Prop
   const [weekIdx, setWeekIdx] = useState(initialWeekIdx)
 
   const { weekNum, entries: weekEntries } = weeks[weekIdx] ?? { weekNum: 1, entries: [] as PlannedWorkout[] }
-  const phase = phases.find(p => weekEntries.some(e => e.phase === p.name)) ?? phases[0]
-  const totalMiles = weekEntries.reduce((s, e) => s + (e.distance ?? 0), 0)
   const weekStart = weekEntries[0]?.date ?? ''
   const weekEnd = weekEntries[weekEntries.length - 1]?.date ?? ''
+  const phase = phases.find(p => p.startDate <= weekStart && p.endDate >= weekEnd)
+    ?? phases.find(p => p.startDate <= weekStart && p.endDate >= weekStart)
+    ?? null
+  const totalMiles = weekEntries.reduce((s, e) => s + (e.distance ?? 0), 0)
 
   const sortedRaces = useMemo(() => [...races].sort((a, b) => a.date.localeCompare(b.date)), [races])
 
