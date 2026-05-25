@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Flag, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react'
-import type { PlannedWorkout, Phase, Race, LibraryWorkout } from '@/lib/data'
+import type { PlannedWorkout, Phase, Race, LibraryWorkout, TrainingLogEntry } from '@/lib/data'
 import { RACE_TYPES } from '@/lib/data'
 import { createPhase, updatePhase, deletePhase, savePlanDay, setupPhaseDays, addRace, updateRace, deleteRace, applyWorkoutToWeekday } from '@/app/actions'
 
@@ -34,6 +34,7 @@ type Props = {
   phases: Phase[]
   races: Race[]
   library: LibraryWorkout[]
+  log: TrainingLogEntry[]
   today: string
 }
 
@@ -388,7 +389,7 @@ function DayEditor({
 
 // ── Main Component ────────────────────────────────────────────
 
-export default function PlanClient({ plan, phases, races, library, today }: Props) {
+export default function PlanClient({ plan, phases, races, library, log, today }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<'plan' | 'phases' | 'races'>('plan')
   const [propagateOffer, setPropagateOffer] = useState<{
@@ -447,6 +448,9 @@ export default function PlanClient({ plan, phases, races, library, today }: Prop
     ?? phases.find(p => p.startDate <= weekStart && p.endDate >= weekStart)
     ?? null
   const totalMiles = weekEntries.reduce((s, e) => s + (e.distance ?? 0), 0)
+  const weekLog = log.filter(e => e.date >= weekStart && e.date <= weekEnd)
+  const actualRunMiles = weekLog.filter(e => /run/i.test(e.activityType)).reduce((s, e) => s + (e.distance ?? 0), 0)
+  const actualBikeMiles = weekLog.filter(e => /ride/i.test(e.activityType)).reduce((s, e) => s + (e.distance ?? 0), 0)
 
   const sortedRaces = useMemo(() => [...races].sort((a, b) => a.date.localeCompare(b.date)), [races])
 
@@ -748,7 +752,14 @@ export default function PlanClient({ plan, phases, races, library, today }: Prop
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 mb-4">
                   <div className="text-xs font-bold text-blue-600 tracking-wide mb-0.5">{phase.name.toUpperCase()}</div>
                   <div className="text-sm text-gray-600">{phase.goal}</div>
-                  {totalMiles > 0 && <div className="text-xs text-gray-400 mt-1">{totalMiles.toFixed(1)} mi planned this week</div>}
+                  {totalMiles > 0 && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      {actualRunMiles > 0
+                        ? <>{actualRunMiles.toFixed(1)} / {totalMiles.toFixed(1)} mi run</>
+                        : <>{totalMiles.toFixed(1)} mi planned</>}
+                      {actualBikeMiles > 0 && <span className="ml-2">· Bike {actualBikeMiles.toFixed(1)} mi</span>}
+                    </div>
+                  )}
                 </div>
               )}
 
