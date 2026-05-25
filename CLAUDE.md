@@ -191,7 +191,7 @@ Every story ships as a PR, not a direct commit to `main`:
 4. **Self-review** before opening the PR (see below)
 5. **Open PR** with `closes #27` in the body — GitHub auto-links commits and auto-closes on merge
 6. **Vercel builds a preview URL** — Lou tests on mobile before anything hits production
-7. **Prompt Lou to run `/ultrareview`** on any PR touching more than one file (see below)
+7. **Prompt Lou to run `/review`** on any PR touching more than one file (see below)
 8. **Lou reviews and merges** — production deploys automatically
 
 ### Testing standard
@@ -217,17 +217,19 @@ Before opening a PR, Claude must review its own diff and check:
 
 If anything fails, fix it before opening the PR.
 
-### `/ultrareview` rule
+### `/review` rule
 After opening a PR that touches **more than one file**, always tell Lou:
 
-> "This PR touches X files. Run `/ultrareview <PR number>` before merging for an independent code review."
+> "This PR touches X files. Run `/review <PR number>` before merging for an independent code review."
 
-Lou runs `/ultrareview` in the Claude Code interface — it launches a multi-agent review of the PR diff and reports back. This is the code review step that catches what functional testing misses.
+Lou runs `/review` in the Claude Code interface — it reviews the PR diff and reports back. This is the code review step that catches what functional testing misses.
 
-Single-file PRs (like a one-line bug fix) can skip `/ultrareview` at Lou's discretion.
+Reserve `/ultrareview` for truly major PRs (large cross-cutting changes, new infrastructure, security-sensitive work). For routine stories, `/review` is sufficient.
+
+Single-file PRs (like a one-line bug fix) can skip `/review` at Lou's discretion.
 
 ### Lou's role — BA + QA, not code reviewer
-Lou reviews features functionally (does it work on mobile?) and as a BA (does it match what was specified?). Claude is responsible for code quality, security, and implementation correctness — that's what self-review and `/ultrareview` are for.
+Lou reviews features functionally (does it work on mobile?) and as a BA (does it match what was specified?). Claude is responsible for code quality, security, and implementation correctness — that's what self-review and `/review` are for.
 
 ### Why this matters
 - A fresh Claude session runs `gh pr list` and `gh issue list` to orient immediately
