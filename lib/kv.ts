@@ -56,3 +56,15 @@ export async function getPlaybookQuotes(): Promise<PlaybookQuote[]> {
 export async function savePlaybookQuotes(quotes: PlaybookQuote[]): Promise<void> {
   await kv.set('coach:playbook:quotes', quotes)
 }
+
+export async function getWeekNotes(): Promise<Record<string, string>> {
+  try {
+    return await kv.get<Record<string, string>>('week:notes') ?? {}
+  } catch {
+    return {}
+  }
+}
+
+export async function saveWeekNotes(notes: Record<string, string>): Promise<void> {
+  await kv.set('week:notes', notes)
+}

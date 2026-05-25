@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Flag, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react'
 import type { PlannedWorkout, Phase, Race, LibraryWorkout, TrainingLogEntry } from '@/lib/data'
 import { RACE_TYPES } from '@/lib/data'
-import { createPhase, updatePhase, deletePhase, savePlanDay, setupPhaseDays, addRace, updateRace, deleteRace, applyWorkoutToWeekday } from '@/app/actions'
+import { createPhase, updatePhase, deletePhase, savePlanDay, setupPhaseDays, addRace, updateRace, deleteRace, applyWorkoutToWeekday, saveWeekNote } from '@/app/actions'
 
 // ── Formatting helpers ────────────────────────────────────────
 
@@ -35,6 +35,7 @@ type Props = {
   races: Race[]
   library: LibraryWorkout[]
   log: TrainingLogEntry[]
+  weekNotes: Record<string, string>
   today: string
 }
 
@@ -389,7 +390,7 @@ function DayEditor({
 
 // ── Main Component ────────────────────────────────────────────
 
-export default function PlanClient({ plan, phases, races, library, log, today }: Props) {
+export default function PlanClient({ plan, phases, races, library, log, weekNotes, today }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<'plan' | 'phases' | 'races'>('plan')
   const [propagateOffer, setPropagateOffer] = useState<{
@@ -405,6 +406,9 @@ export default function PlanClient({ plan, phases, races, library, log, today }:
   const [phaseModal, setPhaseModal] = useState<{ open: boolean; editing: Phase | null }>({ open: false, editing: null })
   const [dayEditing, setDayEditing] = useState<PlannedWorkout | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isEditingNote, setIsEditingNote] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [isSavingNote, startSaveNote] = useTransition()
 
   // Week navigation — grouped by calendar week (Mon–Sun) so races and manually
   // added days with Week#=0 don't collapse everything into "Week 1"
@@ -444,6 +448,12 @@ export default function PlanClient({ plan, phases, races, library, log, today }:
   const { weekNum, entries: weekEntries } = weeks[weekIdx] ?? { weekNum: 1, entries: [] as PlannedWorkout[] }
   const weekStart = weekEntries[0]?.date ?? ''
   const weekEnd = weekEntries[weekEntries.length - 1]?.date ?? ''
+
+  useEffect(() => {
+    setNoteText(weekNotes[weekStart] ?? '')
+    setIsEditingNote(false)
+  }, [weekStart, weekNotes])
+
   const phase = phases.find(p => p.startDate <= weekStart && p.endDate >= weekEnd)
     ?? phases.find(p => p.startDate <= weekStart && p.endDate >= weekStart)
     ?? null
@@ -759,6 +769,50 @@ export default function PlanClient({ plan, phases, races, library, log, today }:
                         : <>{totalMiles.toFixed(1)} mi planned</>}
                       {actualBikeMiles > 0 && <span className="ml-2">· Bike {actualBikeMiles.toFixed(1)} mi</span>}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Week note */}
+              {weekStart && (
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3 mb-4">
+                  <div className="text-xs font-bold text-amber-600 tracking-wide mb-1">WEEK NOTE</div>
+                  {isEditingNote ? (
+                    <>
+                      <textarea
+                        className="w-full text-sm text-gray-700 bg-transparent resize-none outline-none leading-relaxed"
+                        rows={3}
+                        autoFocus
+                        value={noteText}
+                        onChange={e => setNoteText(e.target.value)}
+                        placeholder="What should this athlete focus on this week?"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => startSaveNote(async () => {
+                            await saveWeekNote(weekStart, noteText)
+                            setIsEditingNote(false)
+                          })}
+                          disabled={isSavingNote}
+                          className="text-xs font-semibold text-amber-700 bg-amber-100 rounded-lg px-3 py-1 active:opacity-70 disabled:opacity-40"
+                        >
+                          {isSavingNote ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => { setNoteText(weekNotes[weekStart] ?? ''); setIsEditingNote(false) }}
+                          className="text-xs text-gray-400 px-2 py-1 active:opacity-70"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button className="w-full text-left active:opacity-70" onClick={() => setIsEditingNote(true)}>
+                      {noteText
+                        ? <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{noteText}</p>
+                        : <p className="text-sm text-amber-300 italic">Add a note for this week…</p>
+                      }
+                    </button>
                   )}
                 </div>
               )}

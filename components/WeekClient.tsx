@@ -69,10 +69,11 @@ type Props = {
   phases: Phase[]
   strava: StravaActivity[]
   initialWeekReview: WeekReview | null
+  weekNotes: Record<string, string>
 }
 
 export default function WeekClient({
-  today, initialWeekStart, plan, log, health, phases, strava, initialWeekReview,
+  today, initialWeekStart, plan, log, health, phases, strava, initialWeekReview, weekNotes,
 }: Props) {
   const [viewWeekStart, setViewWeekStart] = useState(initialWeekStart)
   const [weekReviews, setWeekReviews] = useState<Record<string, WeekReview | null>>(
@@ -205,6 +206,13 @@ export default function WeekClient({
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
           <div className="text-xs font-bold text-blue-600 tracking-wide mb-1">{currentPhase.name.toUpperCase()}</div>
           <div className="text-sm text-gray-700 leading-relaxed">{currentPhase.goal}</div>
+        </div>
+      )}
+
+      {weekNotes[viewWeekStart] && (
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-4">
+          <div className="text-xs font-bold text-amber-600 tracking-wide mb-1">WEEK NOTE</div>
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{weekNotes[viewWeekStart]}</p>
         </div>
       )}
 

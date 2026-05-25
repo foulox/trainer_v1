@@ -1,5 +1,5 @@
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
-import { getWeekReview, setWeekReview } from '@/lib/kv'
+import { getWeekReview, setWeekReview, getWeekNotes } from '@/lib/kv'
 import { generateWeekReview } from '@/lib/ai'
 import WeekClient from '@/components/WeekClient'
 
@@ -20,10 +20,11 @@ export default async function WeekPage() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   const { start, end } = getWeekBounds(today)
 
-  const [{ plan, phases, races }, { health, strava }, log] = await Promise.all([
+  const [{ plan, phases, races }, { health, strava }, log, weekNotes] = await Promise.all([
     fetchPlanData(),
     fetchTrainingData(),
     fetchTrainingLog(),
+    getWeekNotes(),
   ])
 
   const weekPlan = plan.filter(e => e.date >= start && e.date <= end)
@@ -51,6 +52,7 @@ export default async function WeekPage() {
       phases={phases}
       strava={strava}
       initialWeekReview={weekReview}
+      weekNotes={weekNotes}
     />
   )
 }
