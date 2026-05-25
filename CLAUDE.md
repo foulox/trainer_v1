@@ -58,11 +58,12 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 ```
 
-## Screens (Bottom Nav — 4 tabs)
+## Screens (Bottom Nav — 5 tabs)
 1. **Today** (`/`) — Planned workout, AI coaching note (why it matters today), Apple Health snapshot (HRV/sleep), days to next race
 2. **Week** (`/week`) — This week's plan vs. actual, AI week-in-review, one-tap PT summary copy
 3. **Plan** (`/plan`) — Three sub-tabs: Weeks, Phases, Races
 4. **Library** (`/library`) — Workout library; add easy runs, long runs, quality workouts
+5. **Coach** (`/coach`) — Coach profile + Playbook (see below). Feedback link lives here, removed from nav.
 
 ## Plan Tab — Sub-tabs
 
@@ -95,6 +96,35 @@ NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 - Adding a race also creates/updates a Race plan day for that date
 - Updating a race date resets the old date's plan day to Rest (via upsertPlanDay)
 - Deleting a race resets that date's plan day to Rest
+
+## Coach Tab — The Playbook (epic #40)
+
+Two sub-tabs: **Profile** and **Playbook**.
+
+### Profile
+- Fields: name, coaching philosophy, coaching influences (chip list), credentials
+- Persists to Vercel KV under key `coach:profile` (no expiry)
+- Philosophy and influences are fed into Claude system prompt for AI coaching notes
+
+### Playbook
+- Curated quote library — coach adds quotes from books, certifications, clinic materials
+- Each quote: text, author, source, topic tags, personal note ("why does this belong here?")
+- Captured by: text paste OR photographing a printed page (Claude vision extracts the text)
+- Photo flow: resized client-side to max 1200px → base64 → `extractQuoteFromImage` action → Claude vision → pre-fills quote field
+- Persists to Vercel KV under key `coach:playbook:quotes` as JSON array, newest first (no expiry)
+- Images are not stored — only extracted text is saved
+- Topic tags: Pacing, Threshold, Easy Running, Long Run, Recovery, Periodization, Race Prep, Mental, Strength, Nutrition
+- Attribution format: "[Quote]" — Author; Source
+
+### KV keys
+| Key | What |
+|-----|------|
+| `coach:profile` | CoachProfile JSON object |
+| `coach:playbook:quotes` | PlaybookQuote[] JSON array |
+
+### Components
+- `components/CoachClient.tsx` — tabbed coach section (profile + playbook)
+- `components/PlaybookQuoteDrawer.tsx` — add quote drawer (text or photo)
 
 ## AI Coaching — How It Works
 - **Nightly cron** (midnight ET): generates coaching notes for next 7 days of workouts, stores in Vercel KV
@@ -164,6 +194,17 @@ Every story ships as a PR, not a direct commit to `main`:
 7. **Prompt Lou to run `/ultrareview`** on any PR touching more than one file (see below)
 8. **Lou reviews and merges** — production deploys automatically
 
+### Testing standard
+
+| Layer | Requirement |
+|---|---|
+| `lib/*.ts` — data, sheets, AI, KV | **TDD required.** Write tests first, then implement. No story touching this layer is done until tests pass. |
+| `app/actions.ts` — server actions | Integration tests for every critical path (upsert, delete). At minimum: happy path + one failure case. |
+| API routes (`app/api/`) | Test happy path + one failure case. |
+| UI components | No unit tests. Verify by running the app. |
+
+**Proof of work:** For any story that touches `lib/` or `app/actions.ts`, the PR description must include a summary of what was tested and the test output (`npm test` or equivalent). The existing test suite lives in `lib/__tests__/`. Run with `npm test`.
+
 ### Self-review before every PR (mandatory)
 Before opening a PR, Claude must review its own diff and check:
 - [ ] Does the implementation match every AC in the story?
@@ -171,6 +212,7 @@ Before opening a PR, Claude must review its own diff and check:
 - [ ] Any security issues — unvalidated input, exposed secrets, injection risks?
 - [ ] Consistent with project conventions (server components, sheet write patterns, Tailwind classes)?
 - [ ] TypeScript clean — run `npx tsc --noEmit` and confirm zero errors
+- [ ] Tests written and passing for any `lib/` or `app/actions.ts` changes (see Testing standard above)
 - [ ] No dead code, debug logs, or temporary hacks left in
 
 If anything fails, fix it before opening the PR.
@@ -198,6 +240,14 @@ The `ready-to-build` label is Lou's to apply — it means Lou has reviewed the s
 
 ### Never commit directly to main
 All code changes go through a PR. The only exception is CLAUDE.md updates and documentation.
+
+### Session wrap-up (before closing)
+When Lou signals the session is ending, Claude runs this check before the conversation closes:
+- Did any architectural decisions get made that aren't in CLAUDE.md?
+- Did any workflow or process changes happen that aren't in memory?
+- Is there anything in this conversation that a future agent would need and can't find in git, GitHub, or CLAUDE.md?
+
+If yes to any: write it down first, then close. Also note which story is up next so the next session can orient immediately.
 
 ## Deployment Status
 - **Live at**: https://trainerv1.vercel.app
