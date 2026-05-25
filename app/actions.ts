@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { fetchPlanData, fetchTrainingData, fetchTrainingLog } from '@/lib/sheets'
 import { generateCoachingNote, generateRestDayNote, generatePostWorkoutNote, generatePTSummaryForRange, generateWeekReview, sendCheckInMessage } from '@/lib/ai'
-import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview, setCoachProfile, getPlaybookQuotes, savePlaybookQuotes } from '@/lib/kv'
+import { getCoachingNote, setCoachingNote, getPostCoachingNote, setPostCoachingNote, getCheckIn, setCheckIn, getWeekReview, setWeekReview, setCoachProfile, getPlaybookQuotes, savePlaybookQuotes, getWeekNotes, saveWeekNotes } from '@/lib/kv'
 import type { CoachingNote, WeekReview, CheckInMessage, CoachProfile, PlaybookQuote } from '@/lib/data'
 
 export async function fetchCoachingNoteForDate(date: string): Promise<CoachingNote | null> {
@@ -611,6 +611,23 @@ export async function removePlaybookQuote(id: string): Promise<{ success: boolea
     return { success: true }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Failed to delete quote' }
+  }
+}
+
+export async function saveWeekNote(weekStart: string, note: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const notes = await getWeekNotes()
+    if (note.trim()) {
+      notes[weekStart] = note.trim()
+    } else {
+      delete notes[weekStart]
+    }
+    await saveWeekNotes(notes)
+    revalidatePath('/plan')
+    revalidatePath('/week')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to save note' }
   }
 }
 
