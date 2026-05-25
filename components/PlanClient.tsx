@@ -142,7 +142,7 @@ function DayEditor({
   const [filterType, setFilterType] = useState<string>('')
   const [filterSubType, setFilterSubType] = useState<string>('')
   const [filterRaceType, setFilterRaceType] = useState<string>('')
-  const [expandedVariation, setExpandedVariation] = useState<string | null>(null)
+  const [expandedFamily, setExpandedFamily] = useState<string | null>(null)
 
   const sportFiltered = useMemo(() => library.filter(w => {
     if (dayType === 'Run' && w.sport !== 'Run') return false
@@ -159,16 +159,34 @@ function DayEditor({
     })
   }, [sportFiltered, filterType, filterSubType, filterRaceType])
 
-  // Standalone workouts (no variation family) + one representative per variation family
-  const pickerRows = useMemo(() => {
+  const familyNames = useMemo(() => {
+    const s = new Set<string>()
+    for (const w of sportFiltered) { if (w.variation) s.add(w.name) }
+    return s
+  }, [sportFiltered])
+
+  type PickerStandalone = { kind: 'standalone'; workout: LibraryWorkout }
+  type PickerFamily = { kind: 'family'; name: string; base: LibraryWorkout | null; progressions: LibraryWorkout[]; total: number }
+  type PickerRow = PickerStandalone | PickerFamily
+
+  const pickerRows = useMemo<PickerRow[]>(() => {
+    const rows: PickerRow[] = []
     const seen = new Set<string>()
-    return filteredLibrary.filter(w => {
-      if (!w.variation) return true
-      if (seen.has(w.variation)) return false
-      seen.add(w.variation)
-      return true
-    })
-  }, [filteredLibrary])
+    for (const w of filteredLibrary) {
+      if (!familyNames.has(w.name)) {
+        rows.push({ kind: 'standalone', workout: w })
+      } else if (!seen.has(w.name)) {
+        seen.add(w.name)
+        const allMembers = filteredLibrary.filter(p => p.name === w.name)
+        const base = allMembers.find(p => !p.variation) ?? null
+        const progressions = allMembers
+          .filter(p => p.variation)
+          .sort((a, b) => (a.progression ?? 0) - (b.progression ?? 0))
+        rows.push({ kind: 'family', name: w.name, base, progressions, total: (base ? 1 : 0) + progressions.length })
+      }
+    }
+    return rows
+  }, [filteredLibrary, familyNames])
 
   const libraryTypes = useMemo(() =>
     Array.from(new Set(sportFiltered.map(w => w.category).filter(Boolean))).sort()
@@ -310,45 +328,54 @@ function DayEditor({
                   <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
                     {pickerRows.length === 0 ? (
                       <div className="text-xs text-gray-400 p-4 text-center">No workouts found</div>
-                    ) : pickerRows.map((w, i) => {
-                      if (!w.variation) {
+                    ) : pickerRows.map((row, i) => {
+                      if (row.kind === 'standalone') {
+                        const w = row.workout
                         return (
-                          <button key={`${w.name}-${i}`} onClick={() => { setSelectedWorkout(w); setShowPicker(false); if (!runType && w.type) setRunType(w.type) }}
+                          <button key={`s-${w.name}-${i}`} onClick={() => { setSelectedWorkout(w); setShowPicker(false); if (!runType && w.type) setRunType(w.type) }}
                             className="w-full text-left px-4 py-3 hover:bg-blue-50 active:bg-blue-100 transition-colors">
                             <div className="text-sm font-semibold text-gray-800">{w.name}</div>
                             {w.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{w.reason}</div>}
                           </button>
                         )
                       }
-                      // Variation family — show family header + expandable progressions
-                      const progressions = filteredLibrary
-                        .filter(v => v.variation === w.variation)
-                        .sort((a, b) => (a.progression ?? 0) - (b.progression ?? 0))
-                      const isExpanded = expandedVariation === w.variation
+                      const isExpanded = expandedFamily === row.name
                       return (
-                        <div key={`var-${w.variation}-${i}`}>
+                        <div key={`f-${row.name}-${i}`}>
                           <button
-                            onClick={() => setExpandedVariation(isExpanded ? null : w.variation)}
+                            onClick={() => setExpandedFamily(isExpanded ? null : row.name)}
                             className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
                           >
                             <div>
-                              <div className="text-sm font-semibold text-gray-800">{w.variation}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">{progressions.length} progressions</div>
+                              <div className="text-sm font-semibold text-gray-800">{row.name}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{row.total} versions · tap to {isExpanded ? 'collapse' : 'expand'}</div>
                             </div>
                             <span className="text-xs text-gray-400 shrink-0">{isExpanded ? '▴' : '▾'}</span>
                           </button>
-                          {isExpanded && progressions.map((v, j) => (
-                            <button
-                              key={`${v.name}-${j}`}
-                              onClick={() => { setSelectedWorkout(v); setShowPicker(false); setExpandedVariation(null); if (!runType && v.type) setRunType(v.type) }}
-                              className="w-full text-left px-6 py-2.5 bg-gray-50 hover:bg-blue-50 active:bg-blue-100 transition-colors border-t border-gray-100"
-                            >
-                              <div className="text-sm font-semibold text-gray-700">
-                                P{v.progression ?? j + 1} — {v.name}
-                              </div>
-                              {v.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{v.reason}</div>}
-                            </button>
-                          ))}
+                          {isExpanded && (
+                            <>
+                              {row.base && (
+                                <button
+                                  onClick={() => { setSelectedWorkout(row.base!); setShowPicker(false); setExpandedFamily(null); if (!runType && row.base!.type) setRunType(row.base!.type) }}
+                                  className="w-full text-left px-6 py-2.5 bg-gray-50 hover:bg-blue-50 active:bg-blue-100 transition-colors border-t border-gray-100"
+                                >
+                                  <div className="text-xs font-bold text-gray-500">Standard</div>
+                                  {row.base.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{row.base.reason}</div>}
+                                </button>
+                              )}
+                              {row.progressions.map((v, j) => (
+                                <button
+                                  key={`${v.name}-${j}`}
+                                  onClick={() => { setSelectedWorkout(v); setShowPicker(false); setExpandedFamily(null); if (!runType && v.type) setRunType(v.type) }}
+                                  className="w-full text-left px-6 py-2.5 bg-gray-50 hover:bg-blue-50 active:bg-blue-100 transition-colors border-t border-gray-100"
+                                >
+                                  <div className="text-xs font-bold text-orange-500">Variation {v.progression ?? j + 1} of {row.total}</div>
+                                  {v.variation && <div className="text-sm text-gray-700 mt-0.5 leading-snug">{v.variation}</div>}
+                                  {v.reason && <div className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{v.reason}</div>}
+                                </button>
+                              ))}
+                            </>
+                          )}
                         </div>
                       )
                     })}
